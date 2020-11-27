@@ -4,7 +4,7 @@ import numpy as np
 def __get_alpha(model, proposal, z_star, z_prev):
     a_ = 1./model.posterior(z_prev) * proposal.density(z_star, z_prev)
     a_ *= model.posterior(z_star) * proposal.density(z_prev, z_star)
-    return np.min(1, a_)
+    return np.min([1., a_])
 
 
 def low_fidelity_mh(
@@ -14,7 +14,10 @@ def low_fidelity_mh(
         number_of_samples):
 
     z_prev = init_z
-    draws = np.zeros((len(init_z), number_of_samples))
+    if type(init_z) is np.array:
+        draws = np.zeros((len(init_z), number_of_samples))
+    else:
+        draws = np.zeros((1, number_of_samples))
     for iteration in range(number_of_samples):
         z_star = proposal.draw(z_prev)
         alpha = __get_alpha(surrogate, proposal, z_star, z_prev)
