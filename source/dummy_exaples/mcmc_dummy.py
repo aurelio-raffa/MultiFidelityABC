@@ -10,9 +10,9 @@ if __name__ == '__main__':
         return np.power(x_, z)
 
     true_k = 5
-    noise_sigma = .1
+    noise_sigma = .05
     prior_mean = 0
-    prior_sigma = 5
+    prior_sigma = 10
     num_data = 20
 
     x = np.linspace(0, 1, num_data)
