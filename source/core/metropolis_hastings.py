@@ -7,7 +7,7 @@ def __get_alpha(model, proposal, z_star, z_prev):
     return np.min([1., a_])
 
 
-def low_fidelity_mh(
+def metropolis_hastings(
         surrogate,
         proposal,
         init_z,
@@ -46,7 +46,7 @@ def adaptive_multifidelity_mh(
     z_prev = z_init
     draws = np.zeros((len(init_z), max_iter * subchain_length))
     for iteration in range(max_iter):
-        subchain = low_fidelity_mh(surrogate, proposal, z_prev, subchain_length - 1)
+        subchain = metropolis_hastings(surrogate, proposal, z_prev, subchain_length - 1)
         z_prev = subchain[-1]
         z_star = proposal.draw(z_prev)
         alpha = __get_alpha(high_fidelity, proposal, z_star, z_prev)
