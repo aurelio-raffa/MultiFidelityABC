@@ -2,7 +2,7 @@ import numpy as np
 
 
 def __get_alpha(model, proposal, z_star, z_prev):
-    a_ = 1./ (model.posterior(z_prev) * proposal.density(z_star, z_prev))
+    a_ = 1. / (model.posterior(z_prev) * proposal.density(z_star, z_prev))
     a_ *= model.posterior(z_star) * proposal.density(z_prev, z_star)
     return np.min([1., a_])
 
