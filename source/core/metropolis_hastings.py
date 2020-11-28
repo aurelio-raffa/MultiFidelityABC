@@ -2,8 +2,9 @@ import numpy as np
 
 
 def __get_alpha(model, proposal, z_star, z_prev):
-    a_ = 1. / (model.posterior(z_prev) * proposal.density(z_star, z_prev))
-    a_ *= model.posterior(z_star) * proposal.density(z_prev, z_star)
+    denom = model.posterior(z_prev) * proposal.density(z_star, z_prev)
+    numer = model.posterior(z_star) * proposal.density(z_prev, z_star)
+    a_ = (numer / denom) if denom else 1.
     return np.min([1., a_])
 
 
@@ -43,11 +44,14 @@ def adaptive_multifidelity_mh(
         proposal,
         init_z):
 
-    z_prev = z_init
-    draws = np.zeros((len(init_z), max_iter * subchain_length))
+    z_prev = init_z
+    if type(init_z) is np.array:
+        draws = np.zeros((len(init_z), max_iter * subchain_length))
+    else:
+        draws = np.zeros((1, max_iter * subchain_length))
     for iteration in range(max_iter):
         subchain = metropolis_hastings(surrogate, proposal, z_prev, subchain_length - 1)
-        z_prev = subchain[-1]
+        z_prev = subchain[0, -1]
         z_star = proposal.draw(z_prev)
         alpha = __get_alpha(high_fidelity, proposal, z_star, z_prev)
         y = z_star if np.random.uniform(0, 1) < alpha else z_prev
