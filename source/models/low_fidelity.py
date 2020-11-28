@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 from .base_model import ForwardModel
 
@@ -14,12 +15,12 @@ class LowFidelityModel(ForwardModel):
         self.expansion_coeffs = None
 
     def fit(self, quad_nodes, forward_eval):
-        self.expansion_coeffs = [np.polynomial.hermite.hermfit(quad_nodes, forward_eval, self.degree)]
+        self.expansion_coeffs = np.polynomial.hermite.hermfit(quad_nodes, forward_eval, self.degree)
         self._fit = True
 
     def eval(self, z):
         assert self._fit
-        return sum([np.polynomial.hermite.hermval(z, coeffs) for coeffs in self.expansion_coeffs])
+        return np.polynomial.hermite.hermval(z, self.expansion_coeffs)
 
     def posterior(self, z):
         predicted = self.eval(z)
@@ -32,4 +33,4 @@ class LowFidelityModel(ForwardModel):
             new_points = y + np.random.uniform(-radius, radius, self.multi_fidelity_q)
         hf_eval = np.concatenate([high_fidelity.eval(z_).reshape(1, -1) for z_ in new_points], axis=0)
         lf_eval = np.concatenate([self.eval(z_).reshape(1, -1) for z_ in new_points], axis=0)
-        self.expansion_coeffs.append(np.polynomial.hermite.hermfit(new_points, hf_eval - lf_eval, self.degree))
+        self.expansion_coeffs += np.polynomial.hermite.hermfit(new_points, hf_eval - lf_eval, self.degree)
