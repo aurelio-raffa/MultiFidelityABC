@@ -1,5 +1,6 @@
 .DS_Store
 .idea/
+outputs/
 **/__pycache__/**
 **/*.pyc
 *.pyc
