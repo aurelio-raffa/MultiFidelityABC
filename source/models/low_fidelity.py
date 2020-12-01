@@ -6,6 +6,7 @@ from .base_model import ForwardModel
 
 class LowFidelityModel(ForwardModel):
     def __init__(self, data, error_density, prior, degree, multi_fidelity_q):
+        super().__init__()
         self.data = data
         self.error_density = error_density
         self.prior = prior
