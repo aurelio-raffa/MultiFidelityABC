@@ -1,6 +1,9 @@
+import numpoly
+
 import chaospy as cpy
 import numpy as np
 
+from time import time
 from chaospy import Normal, generate_expansion
 
 if __name__ == '__main__':
@@ -18,7 +21,15 @@ if __name__ == '__main__':
         return np.prod(np.exp(-params**2))
 
     evals = np.array([forward_model(sample) for sample in abscissas.T])
-
     surrogate = cpy.fit_quadrature(expansion, abscissas, weights, evals)
-    print(surrogate.round(5))
-    print(surrogate(1, 1))
+
+    coefficients = np.array(surrogate.coefficients)
+    indeterminants = surrogate.indeterminants
+    exponents = surrogate.exponents
+
+    t = time()
+    for _ in range(10000):
+        surrogate(.5, 1.5)
+    print(time() - t)
+
+

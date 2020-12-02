@@ -5,11 +5,11 @@ from .base_model import ForwardModel
 
 
 class LowFidelityModel(ForwardModel):
-    def __init__(self, data, error_density, prior, degree, multi_fidelity_q):
+    def __init__(self, data, log_error_density, log_prior, degree, multi_fidelity_q):
         super().__init__()
         self.data = data
-        self.error_density = error_density
-        self.prior = prior
+        self.log_error_density = log_error_density
+        self.log_prior = log_prior
         self.degree = degree
         self.multi_fidelity_q = multi_fidelity_q
         self._fit = False
@@ -23,9 +23,9 @@ class LowFidelityModel(ForwardModel):
         assert self._fit
         return np.polynomial.hermite.hermval(z, self.expansion_coeffs)
 
-    def posterior(self, z):
+    def logposterior(self, z):
         predicted = self.eval(z)
-        return self.error_density(self.data - predicted) * self.prior(z)
+        return self.log_error_density(self.data - predicted) * self.log_prior(z)
 
     def multi_fidelity_update(self, y, radius, high_fidelity):
         if type(y) is np.array:

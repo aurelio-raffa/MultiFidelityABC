@@ -7,7 +7,7 @@ class ForwardModel:
     def eval(self, z):
         pass
 
-    def posterior(self, z):
+    def logposterior(self, z):
         pass
 
 
