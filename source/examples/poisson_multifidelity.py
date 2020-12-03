@@ -136,7 +136,7 @@ if __name__ == '__main__':
     for i in range(2):
         plt.subplot(2, 2, i+1)
         plt.plot(hfmh[i, :], label='true model MH')
-        plt.plot(lfmh[i, :], label='model model MH')
+        plt.plot(lfmh[i, :], label='low-fidelity model MH')
         plt.plot(mfmh[i, :], label='adaptive MH')
         plt.legend()
 
@@ -148,7 +148,7 @@ if __name__ == '__main__':
             'data': np.concatenate([hfmh[i, burn:], lfmh[i, burn:], mfmh[i, burn:]], axis=0),
             'method':
                 ['true model MH samples'] * (samples - burn) +
-                ['model model MH samples'] * (samples - burn) +
+                ['low-fidelity model MH samples'] * (samples - burn) +
                 ['adaptive MH samples'] * (samples - burn)})
         sns.histplot(
             mh_data,
