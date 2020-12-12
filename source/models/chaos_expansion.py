@@ -7,12 +7,12 @@ from .base_model import ForwardModel
 
 
 class PCESurrogate(ForwardModel):
-    #es. di parametri passati: data, log_err_dens, prior, log_prior, 2, 10
-    #da capire meglio cosa sono i multi_fidelity_q
-    #degree dovrebbe essere il grado dei polinomi phi_n che uso in polyn chaos exp
+    # es. di parametri passati: data, log_err_dens, prior, log_prior, 2, 10
+    # da capire meglio cosa sono i multi_fidelity_q
+    # degree dovrebbe essere il grado dei polinomi phi_n che uso in polyn chaos exp
 
-    #mentre multi_fidelity_q dovrebbe essere il num di pti che estraggo quando faccio
-    #l'update del low-fidelity quando uso l'adaptive multi_fidelity
+    # mentre multi_fidelity_q dovrebbe essere il num di pti che estraggo quando faccio
+    # l'update del low-fidelity quando uso l'adaptive multi_fidelity
     def __init__(self, data, log_error_density, prior, log_prior, degree, multi_fidelity_q):
         """
         This class represents the low-fidelity model, approximating the forward
@@ -48,13 +48,13 @@ class PCESurrogate(ForwardModel):
         self._fit = False
 
     @staticmethod
-    #fitted_poly è la somma dei polinomi phi_n
+    # fitted_poly è la somma dei polinomi phi_n
     def _get_coeffs(fitted_poly):
         return np.concatenate([np.array(p.coefficients).reshape(1, -1) for p in fitted_poly], axis=0)
 
-#da capire meglio cos'è quadrature_rule
-    #dovrebbe essere: ∫ phi_i(z)phi_j(z) f_Z(z) dz= 0 (ortogonalità), con f_Z= prior
-    #e con quadrature_rule='gaussian' cosa intendo?
+    # da capire meglio cos'è quadrature_rule
+    # dovrebbe essere: ∫ phi_i(z)phi_j(z) f_Z(z) dz= 0 (ortogonalità), con f_Z= prior
+    # e con quadrature_rule='gaussian' cosa intendo?
 
     def fit(self, high_fidelity, quadrature_rule='gaussian'):
         """
@@ -65,17 +65,17 @@ class PCESurrogate(ForwardModel):
         :param quadrature_rule: str, rule used for the quadrature
         :return: none
         """
-        #come faccio a sapere il Q (numero di punti per la stima dei coeff) del paper, cioè
-        #la lunghezza di abscissae? lo fa da solo sulla base del grado? perché devo avere
-        #Q>numero di polinomi
+        # come faccio a sapere il Q (numero di punti per la stima dei coeff) del paper, cioè
+        # la lunghezza di abscissae? lo fa da solo sulla base del grado? perché devo avere
+        # Q>numero di polinomi
 
         abscissae, weights = cpy.generate_quadrature(self.degree, self.prior, rule=quadrature_rule)
         self.expansion = generate_expansion(self.degree, self.prior, retall=False)
         evals = [high_fidelity.eval(z_) for z_ in abscissae.T]
-        #come entrano i weights nel problema di minimizzazione?
-        #cioè a questo punto ho z1,...,zQ; w1,...,wQ e G(z1),...., G(zQ)
-        #secondo me entrano nella funzione di minimizzazione, dando più peso
-        #agli errori commessi negli zj con peso maggiore
+        # come entrano i weights nel problema di minimizzazione?
+        # cioè a questo punto ho z1,...,zQ; w1,...,wQ e G(z1),...., G(zQ)
+        # secondo me entrano nella funzione di minimizzazione, dando più peso
+        # agli errori commessi negli zj con peso maggiore
         self.proxy = cpy.fit_quadrature(self.expansion, abscissae, weights, evals)
         self._fit = True
 
@@ -129,10 +129,10 @@ class PCESurrogate(ForwardModel):
             new_points = y.reshape(-1, 1) + np.random.uniform(-radius, radius, (y.shape[0], self.multi_fidelity_q))
         else:
             new_points = y + np.random.uniform(-radius, radius, self.multi_fidelity_q)
-       #questo è nel paper C(z_)_i per ogni nodo spaziale i per ogni z_ estratto dalla palla
-        #centrata in y
+        # questo è nel paper C(z_)_i per ogni nodo spaziale i per ogni z_ estratto dalla palla
+        # centrata in y
         new_evals = [high_fidelity.eval(z_) - self.eval(z_) for z_ in new_points.T]
-       #perché qui uso fit_regression anziché fit_quadrature per fare il pce
-       #per l'errore ?
+        # perché qui uso fit_regression anziché fit_quadrature per fare il pce
+        # per l'errore ?
         new_poly = cpy.fit_regression(self.expansion, new_points, new_evals)
         self.proxy = self.proxy + new_poly
