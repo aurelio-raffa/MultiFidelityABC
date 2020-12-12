@@ -38,7 +38,7 @@ class HighFidelityModel(ForwardModel):
         # perché una valutaione è una coppia? (None,None)
         # forse perché nella coppia salvo come primo elemento il parametro z,
         # e come secondo elemento u(z) per ciascun nodo
-        self.last_evalutations = [(None, None), (None, None)]  # always keep the last two evaluations in memory
+        self.last_evaluations = [(None, None), (None, None)]  # always keep the last two evaluations in memory
 
     # perché confronto lo z con gli ultimi due parametri?
     # quando questa cosa è ricorrente nell'algoritmo?
@@ -57,18 +57,18 @@ class HighFidelityModel(ForwardModel):
         :return: numpy.array, it contains the values of the forward model in the
                  evaluation nodes
         """
-        if self.last_evalutations[0][0] is not None and np.all(
-                np.abs(z - self.last_evalutations[0][0]) < np.finfo(np.float32).eps):
+        if self.last_evaluations[0][0] is not None and np.all(
+                np.abs(z - self.last_evaluations[0][0]) < np.finfo(np.float32).eps):
             pass
         # condition to avoid repeated evaluations for the same parameter
-        elif self.last_evalutations[1][0] is not None and np.all(
-                np.abs(z - self.last_evalutations[1][0]) < np.finfo(np.float32).eps):
-            self.last_evalutations.reverse()
+        elif self.last_evaluations[1][0] is not None and np.all(
+                np.abs(z - self.last_evaluations[1][0]) < np.finfo(np.float32).eps):
+            self.last_evaluations.reverse()
         else:
-            self.last_evalutations[1] = (z, self.core_function(z, self.evaluation_nodes))
-            self.last_evalutations.reverse()
-        return self.last_evalutations[0][1]
-        # self.last_evalutations[0] is the most recent entry
+            self.last_evaluations[1] = (z, self.core_function(z, self.evaluation_nodes))
+            self.last_evaluations.reverse()
+        return self.last_evaluations[0][1]
+        # self.last_evaluations[0] is the most recent entry
 
     # la posterior è prior(z)*πe(d-G(z)) ==> log(post) = log(prior) + log(πe)
     def logposterior(self, z):
