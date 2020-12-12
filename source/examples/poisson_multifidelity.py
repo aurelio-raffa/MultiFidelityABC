@@ -13,6 +13,7 @@ from fenics import UnitSquareMesh, Expression, Constant, Function
 from fenics import FunctionSpace, TrialFunction, TestFunction, DirichletBC
 from fenics import dot, grad, solve, plot, dx, errornorm, lhs, rhs
 
+from source.models.gaussian_processes import GPSurrogate
 from source.models.high_fidelity import HighFidelityModel
 from source.models.chaos_expansion import PCESurrogate
 from source.core.metropolis_hastings import metropolis_hastings, adaptive_multifidelity_mh
@@ -162,7 +163,14 @@ if __name__ == '__main__':
     # poi secifico il grado dei polinomi approssimanti ed il multi_fidelity_q
     # PCESurrogate fa la stessa cosa cosa che fa la classe LowFidelityModel?
     lfm = PCESurrogate(data, log_err_dens, prior, log_prior, 2, 10)
+    lfm_ftime = time.time()
     lfm.fit(hfm)
+    lfm_ftime = time.time() - lfm_ftime
+
+    gps = GPSurrogate(data, log_err_dens, prior, log_prior, 1., .1, 10)
+    gps_ftime = time.time()
+    gps.fit(hfm, 6)
+    gps_ftime = time.time() - gps_ftime
 
     proposal = UnifProposal(.05)
     samples = 10000
@@ -176,6 +184,7 @@ if __name__ == '__main__':
     init_radius = .1
     rho = .9
     mfm = deepcopy(lfm)
+    mgm = deepcopy(gps)
 
     lfmh_t = time.time()
     lfmh = metropolis_hastings(lfm, proposal, init_z, samples)
@@ -185,37 +194,63 @@ if __name__ == '__main__':
     hfmh = metropolis_hastings(hfm, proposal, init_z, samples)
     hfmh_t = time.time() - hfmh_t
 
+    gpmh_t = time.time()
+    gpmh = metropolis_hastings(gps, proposal, init_z, samples)
+    gpmh_t = time.time() - gpmh_t
+
     mfmh_t = time.time()
     # quante sono nel multifidelity il numero di z estratte alle fine? sempre samples?
     # sembrerebbe di si
     mfmh = adaptive_multifidelity_mh(
-        subchain_len, samples // subchain_len, upper_th, error_th, init_radius, rho, mfm, hfm, proposal, init_z)
+        subchain_len, samples // subchain_len, upper_th, error_th, init_radius, rho, lfm, hfm, proposal, init_z)
     mfmh_t = time.time() - mfmh_t
 
+    mfgp_t = time.time()
+    mfgp = adaptive_multifidelity_mh(
+        subchain_len, samples // subchain_len, upper_th, error_th, init_radius, rho, mgm, hfm, proposal, init_z)
+    mfgp_t = time.time() - mfgp_t
+
     print('\nperformance evaluation:')
-    print('\tlow fidelity:\t{:.2f}s ({:.4}s per iteration)'.format(lfmh_t, lfmh_t / samples))
     print('\thigh fidelity:\t{:.2f}s ({:.4}s per iteration)'.format(hfmh_t, hfmh_t / samples))
-    print('\tmulti fidelity:\t{:.2f}s ({:.4}s per iteration)'.format(mfmh_t, mfmh_t / samples))
+    print('\tmulti fidelity:\t{:.2f}s ({:.4}s per iteration) [{:.4}s fitting time]'.format(
+        mfmh_t, mfmh_t / samples, lfm_ftime))
+    print('\tPCE low fidelity:\t{:.2f}s ({:.4}s per iteration) [{:.4}s fitting time]'.format(
+        lfmh_t, lfmh_t / samples, lfm_ftime))
+    print('\tGP low fidelity:\t{:.2f}s ({:.4}s per iteration) [{:.4}s fitting time]'.format(
+        gpmh_t, gpmh_t / samples, gps_ftime))
+    print('\tGP multi fidelity:\t{:.2f}s ({:.4}s per iteration) [{:.4}s fitting time]'.format(
+        mfgp_t, mfgp_t / samples, gps_ftime))
 
     plt.figure()
 
     for i in range(2):
         plt.subplot(2, 2, i + 1)
-        plt.plot(hfmh[i, :], label='true model MH')
-        plt.plot(lfmh[i, :], label='low-fidelity model MH')
-        plt.plot(mfmh[i, :], label='adaptive MH')
+        plt.plot(hfmh[i, :], label='true model MH', alpha=.3)
+        plt.plot(lfmh[i, :], label='PCE surrogate model MH', alpha=.3)
+        plt.plot(mfmh[i, :], label='adaptive MH', alpha=.3)
+        plt.plot(gpmh[i, :], label='GP surrogate MH', alpha=.3)
+        plt.plot(mfgp[i, :], label='GP surrogate MH', alpha=.3)
         plt.legend()
 
     burn = 400
     for i in range(2):
         plt.subplot(2, 2, i + 3)
-
+        plot_data = np.concatenate([
+            hfmh[i, burn:],
+            lfmh[i, burn:],
+            mfmh[i, burn:],
+            gpmh[i, burn:],
+            mfgp[i, burn:]],
+            axis=0)
+        labels = \
+            ['true model MH samples'] * (samples - burn) + \
+            ['PCE surrogate model MH samples'] * (samples - burn) + \
+            ['adaptive MH samples'] * (samples - burn) + \
+            ['GP surrogate MH samples'] * (samples - burn) + \
+            ['GP multi fidelity samples'] * (samples - burn)
         mh_data = pd.DataFrame({
-            'data': np.concatenate([hfmh[i, burn:], lfmh[i, burn:], mfmh[i, burn:]], axis=0),
-            'method':
-                ['true model MH samples'] * (samples - burn) +
-                ['low-fidelity model MH samples'] * (samples - burn) +
-                ['adaptive MH samples'] * (samples - burn)})
+            'data': plot_data,
+            'method': labels})
         sns.histplot(
             mh_data,
             x='data',
