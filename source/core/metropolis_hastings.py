@@ -21,7 +21,7 @@ def metropolis_hastings(
         draws = np.zeros((len(init_z), number_of_samples))
     else:
         draws = np.zeros((1, number_of_samples))
-    if log:
+    if log: #cosa faccio dentro questo if?
         widgets = [pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
         bar = pb.ProgressBar(maxval=number_of_samples, widgets=widgets)
         bar.start()
