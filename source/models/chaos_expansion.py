@@ -43,7 +43,7 @@ class PCESurrogate(ForwardModel):
         self.degree = degree
         self.multi_fidelity_q = multi_fidelity_q
         self.expansion = None
-        self.last_evalutations = [(None, None), (None, None)]
+        self.last_evaluations = [(None, None), (None, None)]
         self.proxy = None
         self._fit = False
 
@@ -89,17 +89,17 @@ class PCESurrogate(ForwardModel):
                  the evaluation nodes
         """
         assert self._fit
-        if self.last_evalutations[0][0] is not None and np.all(
-                np.abs(z - self.last_evalutations[0][0]) < np.finfo(np.float32).eps):
+        if self.last_evaluations[0][0] is not None and np.all(
+                np.abs(z - self.last_evaluations[0][0]) < np.finfo(np.float32).eps):
             pass
         # condition to avoid repeated evaluations for the same parameter
-        elif self.last_evalutations[1][0] is not None and np.all(
-                np.abs(z - self.last_evalutations[1][0]) < np.finfo(np.float32).eps):
-            self.last_evalutations.reverse()
+        elif self.last_evaluations[1][0] is not None and np.all(
+                np.abs(z - self.last_evaluations[1][0]) < np.finfo(np.float32).eps):
+            self.last_evaluations.reverse()
         else:
-            self.last_evalutations[1] = (z, self.proxy(*z))
-            self.last_evalutations.reverse()
-        return self.last_evalutations[0][1]
+            self.last_evaluations[1] = (z, self.proxy(*z))
+            self.last_evaluations.reverse()
+        return self.last_evaluations[0][1]
 
     def logposterior(self, z):
         """
