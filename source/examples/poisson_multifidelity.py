@@ -12,6 +12,7 @@ from chaospy import Normal, Uniform, generate_expansion
 from fenics import UnitSquareMesh, Expression, Constant, Function
 from fenics import FunctionSpace, TrialFunction, TestFunction, DirichletBC
 from fenics import dot, grad, solve, plot, dx, errornorm, lhs, rhs
+from sklearn.gaussian_process.kernels import ConstantKernel, RBF
 
 from source.models.gaussian_processes import GPSurrogate
 from source.models.high_fidelity import HighFidelityModel
@@ -167,7 +168,7 @@ if __name__ == '__main__':
     lfm.fit(hfm)
     lfm_ftime = time.time() - lfm_ftime
 
-    gps = GPSurrogate(data, log_err_dens, prior, log_prior, 1., .1, 10)
+    gps = GPSurrogate(data, log_err_dens, prior, log_prior, RBF(.1), 10)
     gps_ftime = time.time()
     gps.fit(hfm, 6)
     gps_ftime = time.time() - gps_ftime
