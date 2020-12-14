@@ -10,13 +10,17 @@ def __get_alpha(model, proposal, z_star, z_prev):
 
 
 def metropolis_hastings(
+        full_conditional_sigma2,
         model,
         proposal,
         init_z,
+        init_sigma,
         number_of_samples,
         log=True):
 
     z_prev = init_z
+    sigma_prev = init_sigma
+
     if type(init_z) is np.ndarray:
         draws = np.zeros((len(init_z), number_of_samples))
     else:
@@ -27,10 +31,12 @@ def metropolis_hastings(
         bar.start()
     for iteration in range(number_of_samples):
         z_star = proposal.draw(z_prev)
+        model.log_error_density.noise_sigma = sigma_prev
         alpha = __get_alpha(model, proposal, z_star, z_prev)
         z_star = z_star if np.random.uniform(0, 1) < alpha else z_prev
         draws[:, iteration] = z_star
         z_prev = z_star
+        sigma_prev = full_conditional_sigma2.draw(model,z_prev)
         if log:
             bar.update(iteration+1)
     return draws

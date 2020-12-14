@@ -109,6 +109,19 @@ if __name__ == '__main__':
     # dovrebbe essere f(z1,z2)=f(z1)f(z2) dove f(s) = pdf U(tol,1-tol)
     prior = cpy.Iid(Uniform(0 + tol, 1 - tol), dim)
 
+
+    class full_conditional_sigma2:
+        def __init__(self, alpha, beta):
+            self.alpha = alpha
+            self.beta = beta
+
+        def draw(self, model, z_):
+            alpha_ = self.alpha + len(model.data) / 2
+            beta_ = self.beta + sum((model.data - model.eval(z_)) ** 2) / 2
+            return #random_invgamma(alpha_,beta_)
+
+
+
     # definisco log prior altrimenti avrei problemi di instabilità numerica
     def log_prior(z_):
         # min e max servono solo perché se passo un valore maggiore di 1-tol
@@ -118,9 +131,19 @@ if __name__ == '__main__':
         return np.log(prior.pdf(z_))
 
     # questa è πe: (x1,...,xn)|--> ∏_i f(xi) con f pdf gaussiana (0, noise_sigma)
-    def log_err_dens(x_):
-        # ritorno la log density di gaussiana (0 ,noise_sigma) a meno di costante
-        return np.sum(-x_ ** 2 / (2 * noise_sigma ** 2))
+    class log_err_dens:
+
+        def __init__(self, noise_sigma):
+            self.noise_sigma = noise_sigma
+
+        def __call__(self, x_):
+            return np.sum(-x_ ** 2 / (2 * self.noise_sigma ** 2))
+
+
+    # def log_err_dens(x_):
+    #     # ritorno la log density di gaussiana (0 ,noise_sigma) a meno di costante
+    #     return np.sum(-x_ ** 2 / (2 * noise_sigma ** 2))
+
 
 
     # per l'hfm dovrò fare metropolis-hasting usando la vera posterior, proporzionale a
