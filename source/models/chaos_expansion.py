@@ -110,6 +110,7 @@ class PCESurrogate(ForwardModel):
         :return: numpy.float, value of the log of the posterior
         """
         predicted = self.eval(z)
+        density = True
         res = self.log_error_density(self.data - predicted) + self.log_prior(z)
         return res
 

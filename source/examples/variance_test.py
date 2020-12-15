@@ -111,7 +111,7 @@ if __name__ == '__main__':
     prior = cpy.Iid(Uniform(0 + tol, 1 - tol), dim)
 
 
-    class full_conditional_sigma2:
+    class full_cond_sigma2:
 
         def __init__(self, alpha, beta):
             self.alpha0 = alpha
@@ -121,7 +121,7 @@ if __name__ == '__main__':
 
         def draw(self, model, z_):
             self.alpha = self.alpha0 + len(model.data) / 2
-            self.beta = self.beta0 + np.linalg.norm((model.data - model.eval(z_)) ** 2) / 2
+            self.beta = self.beta0 + (np.linalg.norm(model.data - model.eval(z_)) ** 2) / 2
             return invgamma.rvs(self.alpha, scale=self.beta)
 
 
@@ -192,10 +192,10 @@ if __name__ == '__main__':
     lfm.fit(hfm)
 
     proposal = UnifProposal(.05)
-    samples = 10000
+    samples = 5000
     init_z = np.array([.5, .5])
-    full_cnd_sigma2 = full_conditional_sigma2(1, 1)
-    init_sigma = 10
+    full_cnd_sigma2 = full_cond_sigma2(1, 1)
+    init_sigma = 1
 
     # questo è l'm del paper, ossia il numero di iterazioni che faccio all'interno del mh dentro
     # il multifidelity
@@ -218,7 +218,7 @@ if __name__ == '__main__':
     # quante sono nel multifidelity il numero di z estratte alle fine? sempre samples?
     # sembrerebbe di si
     mfmh = adaptive_multifidelity_mh(
-        subchain_len, samples // subchain_len, upper_th, error_th, init_radius, rho, mfm, hfm, proposal, init_z)
+        subchain_len, samples // subchain_len, upper_th, error_th, init_radius, rho, mfm, hfm, proposal, init_z, full_cnd_sigma2, init_sigma)
     mfmh_t = time.time() - mfmh_t
 
     print('\nperformance evaluation:')
@@ -226,25 +226,26 @@ if __name__ == '__main__':
     print('\thigh fidelity:\t{:.2f}s ({:.4}s per iteration)'.format(hfmh_t, hfmh_t / samples))
     print('\tmulti fidelity:\t{:.2f}s ({:.4}s per iteration)'.format(mfmh_t, mfmh_t / samples))
 
-    plt.figure()
+    plt.figure() # Da plottare multifidelity
 
-    for i in range(2):
-        plt.subplot(2, 2, i + 1)
+    for i in range(3):
+        plt.subplot(2, 3, i + 1)
+
         plt.plot(hfmh[i, :], label='true model MH')
         plt.plot(lfmh[i, :], label='low-fidelity model MH')
-        plt.plot(mfmh[i, :], label='adaptive MH')
+        plt.plot(mfmh[i, :], label='multi-fidelity model MH')
         plt.legend()
 
     burn = 400
-    for i in range(2):
-        plt.subplot(2, 2, i + 3)
+    for i in range(3):
+        plt.subplot(2, 3, i + 4)
 
         mh_data = pd.DataFrame({
             'data': np.concatenate([hfmh[i, burn:], lfmh[i, burn:], mfmh[i, burn:]], axis=0),
             'method':
                 ['true model MH samples'] * (samples - burn) +
                 ['low-fidelity model MH samples'] * (samples - burn) +
-                ['adaptive MH samples'] * (samples - burn)})
+                ['multi-fidelity model MH samples'] * (samples - burn)})
         sns.histplot(
             mh_data,
             x='data',
@@ -254,7 +255,11 @@ if __name__ == '__main__':
             edgecolor='.3',
             linewidth=.5)
 
-    plt.show()
+    plt.savefig('../../images/plots.jpg')
+    plt.close()
 
 # guardando i plot perché gli istogrammi del true model e dell'adaptive non sono centrati
 # nei true value dei parametri?
+
+# ACHTUNG: l'adaptive metropolis hastings sembra periodicamente visitare zero come valore della varianza, da vedere perché
+# probabilmente visita zero ogni "subchain length", guardare meglio codice dell'adaptive MH
