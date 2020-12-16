@@ -26,7 +26,7 @@ def metropolis_hastings(
     else:
         draws = np.zeros((2, number_of_samples))
     if log:
-        widgets = ['MH', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
+        widgets = ['MH\t', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
         bar = pb.ProgressBar(maxval=number_of_samples, widgets=widgets)
         bar.start()
     for iteration in range(number_of_samples):
@@ -69,7 +69,7 @@ def adaptive_multifidelity_mh(
     else:
         draws = np.zeros((2, max_iter * subchain_length))
     if log:
-        widgets = ['AMH', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
+        widgets = ['AMH\t', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
         bar = pb.ProgressBar(maxval=max_iter, widgets=widgets)
         bar.start()
     for iteration in range(max_iter):
