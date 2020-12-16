@@ -137,11 +137,11 @@ if __name__ == '__main__':
     # questa è πe: (x1,...,xn)|--> ∏_i f(xi) con f pdf gaussiana (0, noise_sigma)
     class log_err_dens:
 
-        def __init__(self, noise_sigma=1):
-            self.noise_sigma = noise_sigma
+        def __init__(self, noise_variance=1):
+            self.noise_variance = noise_variance
 
         def __call__(self, x_):
-            return np.sum(-x_ ** 2 / (2 * self.noise_sigma ** 2))
+            return np.sum(-x_ ** 2 / (2 * self.noise_variance))
 
     l_e_d = log_err_dens(1)
     # def log_err_dens(x_):
@@ -192,7 +192,7 @@ if __name__ == '__main__':
     lfm.fit(hfm)
 
     proposal = UnifProposal(.05)
-    samples = 5000
+    samples = 10000
     init_z = np.array([.5, .5])
     full_cnd_sigma2 = full_cond_sigma2(1, 1)
     init_sigma = 1
@@ -226,7 +226,7 @@ if __name__ == '__main__':
     print('\thigh fidelity:\t{:.2f}s ({:.4}s per iteration)'.format(hfmh_t, hfmh_t / samples))
     print('\tmulti fidelity:\t{:.2f}s ({:.4}s per iteration)'.format(mfmh_t, mfmh_t / samples))
 
-    plt.figure() # Da plottare multifidelity
+    plt.figure(figsize=(15, 10))
 
     for i in range(3):
         plt.subplot(2, 3, i + 1)
