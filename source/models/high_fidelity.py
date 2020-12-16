@@ -1,6 +1,6 @@
 import numpy as np
 
-from .base_model import ForwardModel
+from source.models.base_model import ForwardModel
 
 
 class HighFidelityModel(ForwardModel):
@@ -35,7 +35,7 @@ class HighFidelityModel(ForwardModel):
         self.evaluation_nodes = evaluation_nodes
         self.log_error_density = log_error_density
         self.log_prior = log_prior
-        # perché una valutaione è una coppia? (None,None)
+        # perché una valutazione è una coppia? (None,None)
         # forse perché nella coppia salvo come primo elemento il parametro z,
         # e come secondo elemento u(z) per ciascun nodo
         self.last_evaluations = [(None, None), (None, None)]  # always keep the last two evaluations in memory
