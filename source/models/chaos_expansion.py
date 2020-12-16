@@ -3,7 +3,7 @@ import numpy as np
 
 from chaospy import Normal, generate_expansion
 
-from .base_model import ForwardModel
+from source.models.base_model import ForwardModel
 
 
 class PCESurrogate(ForwardModel):
@@ -56,7 +56,7 @@ class PCESurrogate(ForwardModel):
     # dovrebbe essere: ∫ phi_i(z)phi_j(z) f_Z(z) dz= 0 (ortogonalità), con f_Z= prior
     # e con quadrature_rule='gaussian' cosa intendo?
 
-    def fit(self, high_fidelity, quadrature_rule='gaussian'):
+    def fit(self, high_fidelity, num_evals, quadrature_rule='gaussian'):
         """
         Method for fitting the low-fidelity model basing on polynomial chaos
         expansion.

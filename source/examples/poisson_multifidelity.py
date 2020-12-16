@@ -1,5 +1,6 @@
 import fenics
 import time
+import sys
 
 import seaborn as sns
 import pandas as pd
@@ -8,84 +9,20 @@ import chaospy as cpy
 import matplotlib.pyplot as plt
 
 from copy import deepcopy
-from chaospy import Normal, Uniform, generate_expansion
-from fenics import UnitSquareMesh, Expression, Constant, Function
-from fenics import FunctionSpace, TrialFunction, TestFunction, DirichletBC
-from fenics import dot, grad, solve, plot, dx, errornorm, lhs, rhs
-from sklearn.gaussian_process.kernels import ConstantKernel, RBF
+from chaospy import Uniform
+from sklearn.gaussian_process.kernels import RBF
 
 from source.models.gaussian_processes import GPSurrogate
 from source.models.high_fidelity import HighFidelityModel
 from source.models.chaos_expansion import PCESurrogate
 from source.core.metropolis_hastings import metropolis_hastings, adaptive_multifidelity_mh
-
-
-class PoissonEquation:
-    def __init__(self, grid_shape, f, init_z, dirichlet, degree=1, polynomial_type='P'):
-        """
-        This class represents the Poisson equation and an object of this class can be
-        used as callable object in order to obtain the value of the solution in the
-        spatial nodes of interest. It provides also a method for displaying the contour
-        plot.
-        :param grid_shape: numpy.array, it is used to define the mesh used by fenics
-                           library for approximating the solution of the pde
-        :param f: str, it is the expression of the right member of the Poisson equation
-        :param init_z: numpy.array, it represents the parameter (in general multidimensional)
-                       from which the equation depends
-        :param dirichlet: str, it is the expression for the boundary conditions
-        :param degree: int, it specifies the degree of the polynomials in the
-                       function space
-        :param polynomial_type: str, it specifies the type of the polynomials
-                                in the function space
-        """
-
-        def boundary(x, on_boundary):
-            return on_boundary
-
-        self.grid_shape = grid_shape
-        self.mesh = UnitSquareMesh(*grid_shape)
-        # creo finite dim function space
-        # che significa polinomial_type di tipo 'P' ? ==> P lagrange polynomial
-        self.V = FunctionSpace(self.mesh, polynomial_type, degree)
-        self.dirichlet = DirichletBC(self.V, Expression(dirichlet, degree=degree + 3), boundary)
-        self._paramnames = ['param{}'.format(i) for i in range(len(init_z))]
-        self.f = Expression(f, degree=degree, **dict(zip(self._paramnames, init_z)))
-        u = TrialFunction(self.V)
-        v = TestFunction(self.V)
-        # da qui in poi ho la riscrittura del problema in forma variazionale
-        self.a = dot(grad(u), grad(v)) * dx
-        self.L = self.f * v * dx
-        self.u = Function(self.V)
-
-    # qui z è in generale un vettore di parametri, nel nostro esempio bidimensionale
-    def _solve(self, z):
-        for key, val in zip(self._paramnames, z):
-            self.f.user_parameters[key] = val
-        solve(self.a == self.L, self.u, self.dirichlet)
-
-    # z vettore di parametri, mentre x una matrice 2xn nel caso ho n nodi e problema bidimensionale
-    def __call__(self, z, x):
-        """
-        returns the log of the solution of the Poisson equation for the parameters z
-        in the spatial nodes x
-        :param z: numpy.array, parameter values for the equation
-        :param x: numpy.array, matrix whose columns are the spatial nodes
-        :return: numpy.array, log of the solution of the Poisson equation
-        """
-        self._solve(z)
-        return np.array([np.log(self.u(x_)) for x_ in x.T])
-
-    def plot(self, z):
-        self._solve(z)
-        plt.figure()
-        plt.contourf(
-            np.log(self.u.compute_vertex_values(self.mesh).reshape(*(self.grid_shape + 1))),
-            cmap='viridis')
-        plt.show()
+from source.problems.poisson_equation_base import PoissonEquation
+from source.distributions.cond_inv_gamma import CondInvGamma
+from source.distributions.gauss_distr import GaussDensity
+from source.distributions.uniform_distr import UnifDistr
 
 
 if __name__ == '__main__':
-    # che cosa fa set_log_level?
     fenics.set_log_level(30)
     np.random.seed(1226)
 
@@ -119,11 +56,21 @@ if __name__ == '__main__':
         z_ = np.max([z_, np.zeros_like(z_) + tol], axis=0)
         return np.log(prior.pdf(z_))
 
-    # questa è πe: (x1,...,xn)|--> ∏_i f(xi) con f pdf gaussiana (0, noise_sigma)
-    def log_err_dens(x_):
-        # ritorno la log density di gaussiana (0 ,noise_sigma) a meno di costante
-        return np.sum(-x_ ** 2 / (2 * noise_sigma ** 2))
+    log_err_density = GaussDensity(1)
 
+    proposal = UnifDistr(.05, tol)
+    samples = 10000
+    init_z = np.array([.5, .5])
+    full_cnd_sigma2 = CondInvGamma(1, 1)
+    init_sigma = 1
+
+    # questo è l'm del paper, ossia il numero di iterazioni che faccio all'interno del mh dentro
+    # il multifidelity
+    subchain_len = 100
+    upper_th = 1e-4
+    error_th = 1e-2
+    init_radius = .1
+    rho = .9
 
     # per l'hfm dovrò fare metropolis-hasting usando la vera posterior, proporzionale a
     # prior*likelihood, dove la likelihood è il prodotto delle err_dens nei punti d_i-G(x_i;z)
@@ -133,122 +80,84 @@ if __name__ == '__main__':
     # che serviranno per il calcolo della likelihood, i nodi su cui andrò a valutare la funzione
     # error_dens che mi servirà per calcolo della likelihood, e prior che servirà per calcolare
     # la posterior (queste ultime come log sempre per motivi di instabilità numerica)
-    hfm = HighFidelityModel(
-        forward_model, data, x, log_err_dens, log_prior)
-
-    # classe proposal density, che servirà nel mh, in questo caso uniforme con raggio definito
-    class UnifProposal:
-        def __init__(self, r):
-            self.r = r
-
-        # q(.|z_i-1) ~ U(z_i-1-r , z_i-1+r)
-        # draw verrà fatto dipendente dal parametro z dell'iterazione precedente, e sarà
-        # un unif centrata nel punto precedente di raggio r, non ho ben capito il discorso di max e min
-        def draw(self, z):
-            # uso max e min per evitare che per un determinato r centrato
-            # in un determinato z io possa uscire da [tol, 1-tol]
-            lbs = np.max([z - self.r, np.zeros_like(z) - tol], axis=0)
-            ubs = np.min([z + self.r, np.ones_like(z) + tol], axis=0)
-            return np.random.uniform(lbs, ubs, size=z.shape)
-
-        def logdensity(self, z1, z2):
-            lbs = np.max([z2 - self.r, np.zeros_like(z2) - tol], axis=0)
-            ubs = np.min([z2 + self.r, np.ones_like(z2) + tol], axis=0)
-            dens = 1. / np.prod(ubs - lbs)
-            return np.log(dens) if np.all(np.abs(z1 - z2) <= self.r) else -np.inf
-
 
     # definisco il low fidelity model che sarà un'approssimazione poolinomiale, della funzione vera
     # (soluzione della pde), che stimo a partire dai dati.
     # non mi è chiaro perché passo sia prior sia log_prior
     # poi secifico il grado dei polinomi approssimanti ed il multi_fidelity_q
     # PCESurrogate fa la stessa cosa cosa che fa la classe LowFidelityModel?
-    lfm = PCESurrogate(data, log_err_dens, prior, log_prior, 2, 10)
-    lfm_ftime = time.time()
-    lfm.fit(hfm)
-    lfm_ftime = time.time() - lfm_ftime
 
-    gps = GPSurrogate(data, log_err_dens, prior, log_prior, RBF(.1), 10)
-    gps_ftime = time.time()
-    gps.fit(hfm, 6)
-    gps_ftime = time.time() - gps_ftime
+    hfm = HighFidelityModel(
+        forward_model, data, x, log_err_density, log_prior)
+    quad_points = 10
+    multi_fidelity_q = 12
+    lfm = PCESurrogate(data, log_err_density, prior, log_prior, 2, multi_fidelity_q)
+    gps = GPSurrogate(data, log_err_density, prior, log_prior, RBF(.1), multi_fidelity_q)
 
-    proposal = UnifProposal(.05)
-    samples = 10000
-    init_z = np.array([.5, .5])
+    low_fi_models = [lfm, gps]
+    surrogate_types = ['PCE', 'GPR']
+    models = [hfm] + low_fi_models
+    mul_fi_models = []
+    method_names = ['true model (MH)'] + \
+        ['{} surrogate (MH)'.format(typ) for typ in surrogate_types] + \
+        ['{} surr. (adap. MH)'.format(typ) for typ in surrogate_types]
 
-    # questo è l'm del paper, ossia il numero di iterazioni che faccio all'interno del mh dentro
-    # il multifidelity
-    subchain_len = 100
-    upper_th = 1e-4
-    error_th = 1e-2
-    init_radius = .1
-    rho = .9
-    mfm = deepcopy(lfm)
-    mgm = deepcopy(gps)
+    fit_times = []
+    for mod in low_fi_models:
+        t = time.time()
+        mod.fit(hfm, quad_points)
+        fit_times.append(time.time() - t)
+        mul_fi_models.append(deepcopy(mod))
 
-    lfmh_t = time.time()
-    lfmh = metropolis_hastings(lfm, proposal, init_z, samples)
-    lfmh_t = time.time() - lfmh_t
+    exec_times = []
+    mh_samples = []
+    for mod in models:
+        t = time.time()
+        mh_samples.append(metropolis_hastings(full_cnd_sigma2, mod, proposal, init_z, init_sigma, samples))
+        exec_times.append(time.time() - t)
 
-    hfmh_t = time.time()
-    hfmh = metropolis_hastings(hfm, proposal, init_z, samples)
-    hfmh_t = time.time() - hfmh_t
-
-    gpmh_t = time.time()
-    gpmh = metropolis_hastings(gps, proposal, init_z, samples)
-    gpmh_t = time.time() - gpmh_t
-
-    mfmh_t = time.time()
-    # quante sono nel multifidelity il numero di z estratte alle fine? sempre samples?
-    # sembrerebbe di si
-    mfmh = adaptive_multifidelity_mh(
-        subchain_len, samples // subchain_len, upper_th, error_th, init_radius, rho, lfm, hfm, proposal, init_z)
-    mfmh_t = time.time() - mfmh_t
-
-    mfgp_t = time.time()
-    mfgp = adaptive_multifidelity_mh(
-        subchain_len, samples // subchain_len, upper_th, error_th, init_radius, rho, mgm, hfm, proposal, init_z)
-    mfgp_t = time.time() - mfgp_t
+    for mod in mul_fi_models:
+        t = time.time()
+        mh_samples.append(adaptive_multifidelity_mh(
+            subchain_len,
+            samples // subchain_len,
+            upper_th,
+            error_th,
+            init_radius,
+            rho,
+            mod,
+            hfm,
+            proposal,
+            init_z,
+            full_cnd_sigma2,
+            init_sigma))
+        exec_times.append(time.time() - t)
 
     print('\nperformance evaluation:')
-    print('\thigh fidelity:\t{:.2f}s ({:.4}s per iteration)'.format(hfmh_t, hfmh_t / samples))
-    print('\tmulti fidelity:\t{:.2f}s ({:.4}s per iteration) [{:.4}s fitting time]'.format(
-        mfmh_t, mfmh_t / samples, lfm_ftime))
-    print('\tPCE low fidelity:\t{:.2f}s ({:.4}s per iteration) [{:.4}s fitting time]'.format(
-        lfmh_t, lfmh_t / samples, lfm_ftime))
-    print('\tGP low fidelity:\t{:.2f}s ({:.4}s per iteration) [{:.4}s fitting time]'.format(
-        gpmh_t, gpmh_t / samples, gps_ftime))
-    print('\tGP multi fidelity:\t{:.2f}s ({:.4}s per iteration) [{:.4}s fitting time]'.format(
-        mfgp_t, mfgp_t / samples, gps_ftime))
+    for i, (name, ex_t) in enumerate(zip(method_names, exec_times)):
+        out_str = '\t{}:\t{:.2f}s ({:.4f}s per iteration) '.format(name, ex_t, ex_t/samples)
+        out_str += '' if not i else '[{:.4f}s fitting time]'.format(fit_times[(i - 1) % len(low_fi_models)])
+        print(out_str)
 
-    plt.figure()
+    plt.figure(figsize=(15, 10))
+    plot_names = ['parameter {}'.format(i + 1) for i in range(dim)] + ['variance']
 
-    for i in range(2):
-        plt.subplot(2, 2, i + 1)
-        plt.plot(hfmh[i, :], label='true model MH', alpha=.3)
-        plt.plot(lfmh[i, :], label='PCE surrogate model MH', alpha=.3)
-        plt.plot(mfmh[i, :], label='adaptive MH', alpha=.3)
-        plt.plot(gpmh[i, :], label='GP surrogate MH', alpha=.3)
-        plt.plot(mfgp[i, :], label='GP surrogate MH', alpha=.3)
+    for i, pname in enumerate(plot_names):
+        plt.subplot(2, dim + 1, i + 1)
+        for dname, mhdata in zip(method_names, mh_samples):
+            plt.plot(mhdata[i, :], label=dname, alpha=.3)
+        plt.title(pname)
         plt.legend()
 
     burn = 400
-    for i in range(2):
-        plt.subplot(2, 2, i + 3)
+    for i, pname in enumerate(plot_names):
+        plt.subplot(2, dim + 1, i + dim + 2)
         plot_data = np.concatenate([
-            hfmh[i, burn:],
-            lfmh[i, burn:],
-            mfmh[i, burn:],
-            gpmh[i, burn:],
-            mfgp[i, burn:]],
+            mhdata[i, burn:] for mhdata in mh_samples],
             axis=0)
-        labels = \
-            ['true model MH samples'] * (samples - burn) + \
-            ['PCE surrogate model MH samples'] * (samples - burn) + \
-            ['adaptive MH samples'] * (samples - burn) + \
-            ['GP surrogate MH samples'] * (samples - burn) + \
-            ['GP multi fidelity samples'] * (samples - burn)
+        labels = []
+        for dname in method_names:
+            labels += [dname] * (samples - burn)
         mh_data = pd.DataFrame({
             'data': plot_data,
             'method': labels})
@@ -260,8 +169,13 @@ if __name__ == '__main__':
             multiple='layer',
             edgecolor='.3',
             linewidth=.5)
+        plt.title(pname)
 
-    plt.show()
+    if sys.platform == 'linux':
+        plt.savefig('../../images/plots.jpg')
+        plt.close()
+    else:
+        plt.show()
 
 # guardando i plot perché gli istogrammi del true model e dell'adaptive non sono centrati
 # nei true value dei parametri?

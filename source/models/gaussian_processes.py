@@ -1,8 +1,9 @@
 import numpy as np
 
 from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.preprocessing import StandardScaler
 
-from .base_model import ForwardModel
+from source.models.base_model import ForwardModel
 
 
 class GPSurrogate(ForwardModel):
@@ -32,14 +33,22 @@ class GPSurrogate(ForwardModel):
         self.kernel = kernel
         self.multi_fidelity_q = multi_fidelity_q
         self.last_evaluations = [(None, None), (None, None)]
-        self.regressor = GaussianProcessRegressor(kernel=self.kernel)
-        self.multifidelity_regressors = []
+        self.regressors = []
+        self.scalers = []
         self._fit = False
 
+    def _fit_subroutine(self, quad_points, true_evals):
+        regressor = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, copy_X_train=False)
+        scaler = StandardScaler()
+        adj_quad = scaler.fit_transform(quad_points.T)
+        regressor.fit(adj_quad, true_evals)
+        self.regressors.append(regressor)
+        self.scalers.append(scaler)
+
     def fit(self, high_fidelity, num_evals):
-        quad_z = self.prior.sample(num_evals).T
-        evals = np.concatenate([high_fidelity.eval(z_).reshape(1, -1) for z_ in quad_z], axis=0)
-        self.regressor.fit(quad_z, evals)
+        quad_z = self.prior.sample(num_evals)
+        evals = np.concatenate([high_fidelity.eval(z_).reshape(1, -1) for z_ in quad_z.T], axis=0)
+        self._fit_subroutine(quad_z, evals)
         self._fit = True
 
     def eval(self, z):
@@ -52,9 +61,10 @@ class GPSurrogate(ForwardModel):
                 np.abs(z - self.last_evaluations[1][0]) < np.finfo(np.float32).eps):
             self.last_evaluations.reverse()
         else:
-            prediction = self.regressor.predict(z.reshape(1, -1))
-            for regressor in self.multifidelity_regressors:
-                prediction += regressor.predict(z.reshape(1, -1))
+            prediction = np.zeros_like(self.data)
+            for regressor, scaler in zip(self.regressors, self.scalers):
+                adj_z = scaler.transform(z.reshape(1, -1))
+                prediction += regressor.predict(adj_z).reshape((-1,))
             self.last_evaluations[1] = (z, prediction)
             self.last_evaluations.reverse()
         return self.last_evaluations[0][1]
@@ -71,6 +81,4 @@ class GPSurrogate(ForwardModel):
             new_points = y + np.random.uniform(-radius, radius, self.multi_fidelity_q)
         new_evals = np.concatenate([
             (high_fidelity.eval(z_) - self.eval(z_)).reshape(1, -1) for z_ in new_points.T], axis=0)
-        new_regressor = GaussianProcessRegressor(kernel=self.kernel)
-        new_regressor.fit(new_points.T, new_evals)
-        self.multifidelity_regressors.append(new_regressor)
+        self._fit_subroutine(new_points, new_evals)
