@@ -20,6 +20,7 @@ from source.problems.poisson_equation_base import PoissonEquation
 from source.distributions.cond_inv_gamma import CondInvGamma
 from source.distributions.gauss_distr import GaussDensity
 from source.distributions.uniform_distr import UnifDistr
+from statsmodels.graphics.tsaplots import plot_acf
 
 
 if __name__ == '__main__':
@@ -35,7 +36,7 @@ if __name__ == '__main__':
 
     tol = 1e-5  # tol is used for not drawing nodes from the boundary
     num_data = 100  # sample's dimension of data collected
-    noise_sigma = .75  # since we generate the data we add...
+    noise_sigma = .25  # since we generate the data we add...
     true_z = np.array([.25, .75])
     # perché faccio l'uniforme tra [0+tol, 1-tol]
     x = np.random.uniform(0 + tol, 1 - tol, size=(2, num_data))
@@ -58,8 +59,8 @@ if __name__ == '__main__':
 
     log_err_density = GaussDensity(1)
 
-    proposal = UnifDistr(.05, tol)
-    samples = 10000
+    proposal = UnifDistr(.01, tol)
+    samples = 2000
     init_z = np.array([.5, .5])
     full_cnd_sigma2 = CondInvGamma(1, 1)
     init_sigma = 1
@@ -141,17 +142,20 @@ if __name__ == '__main__':
 
     plt.figure(figsize=(15, 10))
     plot_names = ['parameter {}'.format(i + 1) for i in range(dim)] + ['variance']
+    cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
     for i, pname in enumerate(plot_names):
-        plt.subplot(2, dim + 1, i + 1)
-        for dname, mhdata in zip(method_names, mh_samples):
+        plt.subplot(3, dim + 1, i + 1)
+        for j, (dname, mhdata) in enumerate(zip(method_names, mh_samples)):
             plt.plot(mhdata[i, :], label=dname, alpha=.3)
+            cmean = np.cumsum(mhdata[i, :]) / np.arange(1, mhdata.shape[1] + 1)
+            plt.plot(cmean, ':', color=cycle[j])
         plt.title(pname)
         plt.legend()
 
     burn = 400
     for i, pname in enumerate(plot_names):
-        plt.subplot(2, dim + 1, i + dim + 2)
+        plt.subplot(3, dim + 1, i + dim + 2)
         plot_data = np.concatenate([
             mhdata[i, burn:] for mhdata in mh_samples],
             axis=0)
@@ -165,10 +169,23 @@ if __name__ == '__main__':
             mh_data,
             x='data',
             hue='method',
-            bins=50,
+            stat='density',
+            bins=75,
             multiple='layer',
             edgecolor='.3',
             linewidth=.5)
+        plt.xlabel('')
+        plt.ylabel('')
+        plt.title(pname)
+
+    for i, pname in enumerate(plot_names):
+        ax = plt.subplot(3, dim + 1, i + 2 * dim + 3)
+        for dname, mhdata in zip(method_names, mh_samples):
+            plot_acf(mhdata[i, burn:], ax=ax, alpha=None, label=dname, marker='.', vlines_kwargs={'color': 'lightgray'})
+        handles, labels = ax.get_legend_handles_labels()
+        handles = handles[1::2]
+        labels = labels[1::2]
+        ax.legend(handles=handles, labels=labels)
         plt.title(pname)
 
     if sys.platform == 'linux':
