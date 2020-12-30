@@ -12,7 +12,7 @@ class UnifDistr:
     def draw(self, z):
         # uso max e min per evitare che per un determinato r centrato
         # in un determinato z io possa uscire da [tol, 1-tol]
-        lbs = np.max([z - self.r, np.zeros_like(z) - self.tol], axis=0)
+        lbs = np.max([z - self.r, np.zeros_like(z) - self.tol], axis=0) # Questo numero puo anche essere minore di zero??
         ubs = np.min([z + self.r, np.ones_like(z) + self.tol], axis=0)
         return np.random.uniform(lbs, ubs, size=z.shape)
 

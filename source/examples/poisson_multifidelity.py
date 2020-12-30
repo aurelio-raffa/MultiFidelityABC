@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from copy import deepcopy
 from chaospy import Uniform
 from sklearn.gaussian_process.kernels import RBF
+from mcmc_diagnostics import estimate_ess
+from scipy.special import logit                    # Dove devo mettere questi pacchetti?
 
 from source.models.gaussian_processes import GPSurrogate
 from source.models.high_fidelity import HighFidelityModel
@@ -32,7 +34,7 @@ if __name__ == '__main__':
     # 0 credo stia per dire condizioni omogenee di dirichlet
     forward_model = PoissonEquation(
         np.array([32, 32]), 'exp(-100*(pow(x[0] - param0, 2) + pow(x[1] - param1, 2)))',
-        np.array([.5, .5]), '0')
+        np.array([.5, .5]), '0', reparam=True)
 
     tol = 1e-5  # tol is used for not drawing nodes from the boundary
     num_data = 100  # sample's dimension of data collected
@@ -40,28 +42,35 @@ if __name__ == '__main__':
     true_z = np.array([.25, .75])
     # perché faccio l'uniforme tra [0+tol, 1-tol]
     x = np.random.uniform(0 + tol, 1 - tol, size=(2, num_data))
-    true_vals = forward_model(true_z, x)
+    if forward_model.reparam:
+        true_vals = forward_model(logit(true_z), x)
+    else:
+        true_vals = forward_model(true_z, x)
     data = true_vals + np.random.normal(0, noise_sigma, size=true_vals.shape)
 
     # dimensione del parametro (in questo caso bidimensionale)
     dim = 2
 
     # dovrebbe essere f(z1,z2)=f(z1)f(z2) dove f(s) = pdf U(tol,1-tol)
-    prior = cpy.Iid(Uniform(0 + tol, 1 - tol), dim)
+    prior = cpy.Iid(cpy.Normal(logit(0.5), 1), dim)
 
-    # definisco log prior altrimenti avrei problemi di instabilità numerica
     def log_prior(z_):
         # min e max servono solo perché se passo un valore maggiore di 1-tol
         # o minore di tol
-        z_ = np.min([z_, np.ones_like(z_) - tol], axis=0)
-        z_ = np.max([z_, np.zeros_like(z_) + tol], axis=0)
+        if not forward_model.reparam:
+            z_ = np.min([z_, np.ones_like(z_) - tol], axis=0)
+            z_ = np.max([z_, np.zeros_like(z_) + tol], axis=0)
         return np.log(prior.pdf(z_))
 
     log_err_density = GaussDensity(1)
 
-    proposal = UnifDistr(.01, tol)
+    #proposal = UnifDistr(.01, tol)
+    proposal = GaussDensity(.1)
     samples = 2000
-    init_z = np.array([.5, .5])
+    if proposal.__class__.__name__ == 'GaussDensity':
+        init_z = np.array([logit(.5), logit(.5)])
+    else:
+        init_z = np.array([.5, .5])
     full_cnd_sigma2 = CondInvGamma(1, 1)
     init_sigma = 1
 
@@ -139,6 +148,7 @@ if __name__ == '__main__':
         out_str = '\t{}:\t{:.2f}s ({:.4f}s per iteration) '.format(name, ex_t, ex_t/samples)
         out_str += '' if not i else '[{:.4f}s fitting time]'.format(fit_times[(i - 1) % len(low_fi_models)])
         print(out_str)
+        print('\tEffective sample size: ', np.floor(estimate_ess(mh_samples[i].T, method='monotone-sequence')))
 
     plt.figure(figsize=(15, 10))
     plot_names = ['parameter {}'.format(i + 1) for i in range(dim)] + ['variance']
