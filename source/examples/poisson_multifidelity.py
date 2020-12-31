@@ -50,16 +50,22 @@ def main():
     quad_points = 20
     multi_fidelity_q = 12
 
-    # definition of the forward model
-    forward_model = PoissonEquation(
-        np.array([32, 32]), 'exp(-100*(pow(x[0] - param0, 2) + pow(x[1] - param1, 2)))',
+    # definition of the forward model for data generation - finer grid to avoid inverse crimes
+    equation = 'exp(-100*(pow(x[0] - param0, 2) + pow(x[1] - param1, 2)))'
+    data_gen_forward_model = PoissonEquation(
+        np.array([128, 128]), equation,
         np.array([.5, .5]), '0', reparam=True)
 
     # generation of the dataset
     true_z = logit(logit_true_z)
     x = np.random.uniform(0 + tol, 1 - tol, size=(2, num_data))
-    data = forward_model(true_z, x)
+    data = data_gen_forward_model(true_z, x)
     data += np.random.normal(0, noise_sigma, size=data.shape)
+
+    # forward model for the MCMCs
+    forward_model = PoissonEquation(
+        np.array([32, 32]), equation,
+        np.array([.5, .5]), '0', reparam=True)
 
     # useful distributions and densities
     def log_prior(z_):
