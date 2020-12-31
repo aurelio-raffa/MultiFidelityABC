@@ -1,6 +1,6 @@
 import numpy as np
 
-from .base_model import ForwardModel
+from source.models.base_model import ForwardModel
 
 
 class HighFidelityModel(ForwardModel):
@@ -29,16 +29,9 @@ class HighFidelityModel(ForwardModel):
                           computed on it
         """
         # make sure that the data nodes are a subset of the quadrature nodes
-        super().__init__()
+        super().__init__(data, log_error_density, log_prior)
         self.core_function = core_function
-        self.data = data
         self.evaluation_nodes = evaluation_nodes
-        self.log_error_density = log_error_density
-        self.log_prior = log_prior
-        # perché una valutaione è una coppia? (None,None)
-        # forse perché nella coppia salvo come primo elemento il parametro z,
-        # e come secondo elemento u(z) per ciascun nodo
-        self.last_evaluations = [(None, None), (None, None)]  # always keep the last two evaluations in memory
 
     # perché confronto lo z con gli ultimi due parametri?
     # quando questa cosa è ricorrente nell'algoritmo?
@@ -48,37 +41,5 @@ class HighFidelityModel(ForwardModel):
     # forse è dovuto al fatto che se poi rigetto vuol dire che l'ultima valutaz è
     # in z* mentre la penultima è in z_i-1 e in caso di rigetto sono interessato
     # quindi alla penultima
-    def eval(self, z):
-        """
-        Member function that returns the evaluations of the forward model for the
-        parameter passed as input, in the evaluation nodes
-        :param z: numpy.array, parameter for which I want to compute the values of
-                  the forward model in the evaluation nodes
-        :return: numpy.array, it contains the values of the forward model in the
-                 evaluation nodes
-        """
-        if self.last_evaluations[0][0] is not None and np.all(
-                np.abs(z - self.last_evaluations[0][0]) < np.finfo(np.float32).eps):
-            pass
-        # condition to avoid repeated evaluations for the same parameter
-        elif self.last_evaluations[1][0] is not None and np.all(
-                np.abs(z - self.last_evaluations[1][0]) < np.finfo(np.float32).eps):
-            self.last_evaluations.reverse()
-        else:
-            self.last_evaluations[1] = (z, self.core_function(z, self.evaluation_nodes))
-            self.last_evaluations.reverse()
-        return self.last_evaluations[0][1]
-        # self.last_evaluations[0] is the most recent entry
-
-    # la posterior è prior(z)*πe(d-G(z)) ==> log(post) = log(prior) + log(πe)
-    def logposterior(self, z):
-        """
-        Member function that returns the value of the log posterior for the parameter
-        passed as input
-        :param z: numpy.array, parameter for which I want to compute the log of the
-                  posterior
-        :return: numpy.float, value of the log of the posterior
-        """
-        predicted = self.eval(z)  # qui ottengo G(x_i;z)
-        res = self.log_error_density(self.data - predicted) + self.log_prior(z)  # implement it via mpi
-        return res
+    def _eval_subroutine(self, z):
+        return self.core_function(z, self.evaluation_nodes)

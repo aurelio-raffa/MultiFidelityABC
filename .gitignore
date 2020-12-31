@@ -4,3 +4,4 @@ outputs/
 **/__pycache__/**
 **/*.pyc
 *.pyc
+images/
