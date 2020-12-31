@@ -31,7 +31,7 @@ def metropolis_hastings(
         bar.start()
     for iteration in range(number_of_samples):
         z_star = proposal.draw(z_prev)
-        model.log_error_density.noise_variance = variance_prev
+        model.log_error_density.sigma = variance_prev
         log_alpha = _get_log_alpha(model, proposal, z_star, z_prev)
         z_star = z_star if np.log(np.random.uniform(0, 1)) < log_alpha else z_prev
         draws[:-1, iteration] = z_star
@@ -77,8 +77,8 @@ def adaptive_multifidelity_mh(
             full_conditional_sigma2, surrogate, proposal, z_prev, variance_prev, subchain_length - 1, log=False)
         z_prev = subchain[:len(init_z), -1] if type(z_prev) is np.ndarray else subchain[0, -1]
         variance_prev = subchain[-1, -1]
-        surrogate.log_error_density.noise_variance = variance_prev
-        high_fidelity.log_error_density.noise_variance = variance_prev
+        surrogate.log_error_density.sigma = variance_prev
+        high_fidelity.log_error_density.sigma = variance_prev
         z_star = proposal.draw(z_prev)
         log_alpha = _get_log_alpha(high_fidelity, proposal, z_star, z_prev)
         y = z_star if np.log(np.random.uniform(0, 1)) < log_alpha else z_prev
