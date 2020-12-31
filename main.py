@@ -1,4 +1,5 @@
-from source.core.metropolis_hastings import metropolis_hastings
+from source.examples.poisson_multifidelity import main
+
 
 if __name__ == '__main__':
-    print('coming soon ...')
+    main()

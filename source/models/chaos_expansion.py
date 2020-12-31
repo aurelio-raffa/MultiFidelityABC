@@ -3,10 +3,11 @@ import numpy as np
 
 from chaospy import Normal, generate_expansion
 
-from source.models.base_model import ForwardModel
+from source.models.surrogate import SurrogateModel
+from source.utils.decorators import time_it
 
 
-class PCESurrogate(ForwardModel):
+class PCESurrogate(SurrogateModel):
     # es. di parametri passati: data, log_err_dens, prior, log_prior, 2, 10
     # da capire meglio cosa sono i multi_fidelity_q
     # degree dovrebbe essere il grado dei polinomi phi_n che uso in polyn chaos exp
@@ -35,31 +36,25 @@ class PCESurrogate(ForwardModel):
         :param multi_fidelity_q: int, it indicates the number of drawn parameter
                                  samples when I update the low fidelity model
         """
-        super().__init__()
-        self.data = data
-        self.log_error_density = log_error_density
-        self.prior = prior
-        self.log_prior = log_prior
+        super().__init__(data, log_error_density, prior, log_prior, multi_fidelity_q)
         self.degree = degree
-        self.multi_fidelity_q = multi_fidelity_q
         self.expansion = None
-        self.last_evaluations = [(None, None), (None, None)]
         self.proxy = None
-        self._fit = False
 
     @staticmethod
-    # fitted_poly è la somma dei polinomi phi_n
-    def _get_coeffs(fitted_poly):
+    def _get_coeffs(fitted_poly):       # fitted_poly è la somma dei polinomi phi_n
         return np.concatenate([np.array(p.coefficients).reshape(1, -1) for p in fitted_poly], axis=0)
 
     # da capire meglio cos'è quadrature_rule
     # dovrebbe essere: ∫ phi_i(z)phi_j(z) f_Z(z) dz= 0 (ortogonalità), con f_Z= prior
     # e con quadrature_rule='gaussian' cosa intendo?
 
-    def fit(self, high_fidelity, num_evals, quadrature_rule='gaussian'):
+    @time_it(only_time=True)
+    def fit(self, high_fidelity, num_evals=None, quadrature_rule='gaussian'):
         """
         Method for fitting the low-fidelity model basing on polynomial chaos
         expansion.
+        :param num_evals:
         :param high_fidelity: HighFidelityModel, model that we want to approximate
                               through the low-fidelity
         :param quadrature_rule: str, rule used for the quadrature
@@ -79,39 +74,8 @@ class PCESurrogate(ForwardModel):
         self.proxy = cpy.fit_quadrature(self.expansion, abscissae, weights, evals)
         self._fit = True
 
-    def eval(self, z):
-        """
-        Member function that returns the evaluations of the low-fidelity model for
-        the parameter passed as input, in the evaluation nodes
-        :param z: numpy.array, parameter for which I want to compute the values of
-                  the low-fidelity model in the evaluation nodes
-        :return: numpy.array, it contains the values of the low-fidelity model in
-                 the evaluation nodes
-        """
-        assert self._fit
-        if self.last_evaluations[0][0] is not None and np.all(
-                np.abs(z - self.last_evaluations[0][0]) < np.finfo(np.float32).eps):
-            pass
-        # condition to avoid repeated evaluations for the same parameter
-        elif self.last_evaluations[1][0] is not None and np.all(
-                np.abs(z - self.last_evaluations[1][0]) < np.finfo(np.float32).eps):
-            self.last_evaluations.reverse()
-        else:
-            self.last_evaluations[1] = (z, self.proxy(*z))
-            self.last_evaluations.reverse()
-        return self.last_evaluations[0][1]
-
-    def logposterior(self, z):
-        """
-        Member function that returns the value of the log posterior for the parameter
-        passed as input, where the likelihood is based on the low-fidelity model
-        :param z: numpy.array, parameter for which I want to compute the log of the
-                  posterior
-        :return: numpy.float, value of the log of the posterior
-        """
-        predicted = self.eval(z)
-        res = self.log_error_density(self.data - predicted) + self.log_prior(z)
-        return res
+    def _eval_subroutine(self, z):
+        return self.proxy(*z)
 
     def multi_fidelity_update(self, y, radius, high_fidelity):
         """
@@ -125,10 +89,7 @@ class PCESurrogate(ForwardModel):
                               with the low-fidelity
         :return: none
         """
-        if type(y) is np.ndarray:
-            new_points = y.reshape(-1, 1) + np.random.uniform(-radius, radius, (y.shape[0], self.multi_fidelity_q))
-        else:
-            new_points = y + np.random.uniform(-radius, radius, self.multi_fidelity_q)
+        new_points = super().multi_fidelity_update(y, radius, high_fidelity)
         # questo è nel paper C(z_)_i per ogni nodo spaziale i per ogni z_ estratto dalla palla
         # centrata in y
         new_evals = [high_fidelity.eval(z_) - self.eval(z_) for z_ in new_points.T]
