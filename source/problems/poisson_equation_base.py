@@ -6,8 +6,11 @@ from fenics import FunctionSpace, TrialFunction, TestFunction, DirichletBC
 from fenics import dot, grad, solve, dx
 from scipy.stats import logistic
 
+from source.utils.decorators import CountIt
+
 
 class PoissonEquation:
+
     def __init__(self, grid_shape, f, init_z, dirichlet, degree=1, polynomial_type='P', reparam=True):
         """
         This class represents the Poisson equation and an object of this class can be
@@ -44,6 +47,7 @@ class PoissonEquation:
         self.L = self.f * v * dx
         self.u = Function(self.V)
         self.reparam = reparam
+        self.solver = CountIt(solve)
 
     # qui z è in generale un vettore di parametri, nel nostro esempio bidimensionale
     def _solve(self, z):
@@ -51,7 +55,7 @@ class PoissonEquation:
             z = logistic.cdf(z)
         for key, val in zip(self._paramnames, z):
             self.f.user_parameters[key] = val
-        solve(self.a == self.L, self.u, self.dirichlet)
+        self.solver(self.a == self.L, self.u, self.dirichlet)
 
     # z vettore di parametri, mentre x una matrice 2xn nel caso ho n nodi e problema bidimensionale
     def __call__(self, z, x):
