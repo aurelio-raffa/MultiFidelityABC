@@ -9,6 +9,7 @@ import seaborn as sns
 
 from copy import deepcopy
 from datetime import datetime
+from itertools import product, combinations
 from matplotlib import cm
 from mcmc_diagnostics import estimate_ess
 from mpl_toolkits.mplot3d import Axes3D
@@ -61,7 +62,7 @@ def diagnostics_report(
         print(out_str)
 
 
-def _show_or_save(plotname='plot', save=False, show=True):
+def show_or_save(plotname='plot', save=False, show=True):
     if (sys.platform == 'linux' and show) or save:
         now = datetime.now()
         now_to_string = now.strftime("%Y_%m_%d@%H_%M_%S")
@@ -125,7 +126,7 @@ def visual_inspection(dim, method_names, mh_samples, samples, burn, figsize=(15,
         ax.legend(handles=handles, labels=labels)
         plt.title(pname)
 
-    _show_or_save(save=save)
+    show_or_save(save=save)
 
 
 def run_and_track(
@@ -162,7 +163,9 @@ def run_and_track(
     for mod in models:
         solver.reset_calls()
         t = time.time()
-        mh_samples.append(metropolis_hastings(var_full_conditional, mod, proposal, init_z, init_sigma, samples))
+        mh_samples.append(
+            metropolis_hastings(
+                var_full_conditional, mod, proposal, init_z, init_sigma, samples))
         exec_times.append(time.time() - t)
         exec_calls.append(solver.get_calls())
 
@@ -172,8 +175,7 @@ def run_and_track(
         mh_samples.append(
             adaptive_multifidelity_mh(
                 subchain_len, samples // subchain_len, upper_th, error_th,
-                init_radius, rho,
-                mod, high_fidelity_model,
+                init_radius, rho, mod, high_fidelity_model,
                 proposal, init_z, var_full_conditional, init_sigma))
         exec_times.append(time.time() - t)
         exec_calls.append(solver.get_calls())
@@ -185,6 +187,15 @@ def run_and_track(
                     mhd[i, :] = fun(mhd[i, :])
 
     return fit_times, fit_calls, exec_times, exec_calls, mh_samples
+
+
+def _get_3dwindow(figsize=(10, 10), angles=None):
+    fig = plt.figure(figsize=figsize)
+    ax = plt.axes(projection='3d')
+    if angles:
+        ax.view_init(*angles)
+    ax.grid(False)
+    return fig, ax
 
 
 def _base_3d_plotter(x_ranges, y_ranges, fun, step=.1, color_fun=None, angles=None):
@@ -200,11 +211,7 @@ def _base_3d_plotter(x_ranges, y_ranges, fun, step=.1, color_fun=None, angles=No
         colors = None
         cmap = 'viridis'
 
-    fig = plt.figure(figsize=(10, 10))
-    ax = plt.axes(projection="3d")
-    if angles:
-        ax.view_init(*angles)
-    ax.grid(False)
+    fig, ax = _get_3dwindow(angles=angles)
     return fig, ax, xx, yy, zz, cmap, colors
 
 
@@ -215,7 +222,7 @@ def surface_plot(x_ranges, y_ranges, fun, step=.1, color_fun=None, angles=None, 
     if colorbar:
         fig.colorbar(surf, shrink=0.3)
 
-    _show_or_save(plotname='surface', save=save, show=show)
+    show_or_save(plotname='surface', save=save, show=show)
     return fig, ax
 
 
@@ -227,18 +234,28 @@ def wireframe_plot(
     if colorbar:
         fig.colorbar(wire, shrink=0.3)
 
-    _show_or_save(plotname='wireframe', save=save, show=show)
+    show_or_save(plotname='wireframe', save=save, show=show)
     return fig, ax
 
 
-def points_plot(fig, ax, coords, values, angles=None, color=None, colorbar=True, show=True, save=False):
+def points_plot(
+        fig, ax, coords, values, angles=None, color=None, colorbar=True, show=True, save=False, **scatter_kwargs):
     if angles:
         ax.view_init(*angles)
     ax.grid(False)
-    points = ax.scatter(coords[0, :], coords[1, :], values, c=color, cmap='coolwarm')
+    points = ax.scatter(coords[0, :], coords[1, :], values, c=color, cmap='coolwarm', **scatter_kwargs)
 
     if colorbar:
         fig.colorbar(points, shrink=0.3)
 
-    _show_or_save(plotname='points', save=save, show=show)
+    show_or_save(plotname='points', save=save, show=show)
     return fig, ax, points
+
+
+def box3d_plot(vtx1, vtx2, **plot3d_kwargs):
+    r = [np.sort(pair) for pair in zip(vtx1, vtx2)]
+    fig, ax = _get_3dwindow()
+    for s, e in combinations(np.array(list(product(*r))), 2):
+        if np.sum(np.abs(s - e)) in [r_[1] - r_[0] for r_ in r]:
+            ax.plot3D(*zip(s, e), color='black', **plot3d_kwargs)
+    return fig, ax

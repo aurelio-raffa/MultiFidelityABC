@@ -1,5 +1,6 @@
 import chaospy as cpy
 import numpy as np
+import progressbar as pb
 
 from chaospy import Normal, generate_expansion
 
@@ -66,7 +67,13 @@ class PCESurrogate(SurrogateModel):
 
         abscissae, weights = cpy.generate_quadrature(self.degree, self.prior, rule=quadrature_rule)
         self.expansion = generate_expansion(self.degree, self.prior, retall=False)
-        evals = [high_fidelity.eval(z_) for z_ in abscissae.T]
+        widgets = ['fit\t', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
+        bar = pb.ProgressBar(maxval=abscissae.T.shape[0], widgets=widgets)
+        evals = []
+        bar.start()
+        for i, z_ in enumerate(abscissae.T):
+            evals.append(high_fidelity.eval(z_))
+            bar.update(i + 1)
         # come entrano i weights nel problema di minimizzazione?
         # cioè a questo punto ho z1,...,zQ; w1,...,wQ e G(z1),...., G(zQ)
         # secondo me entrano nella funzione di minimizzazione, dando più peso

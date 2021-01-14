@@ -1,4 +1,5 @@
 import numpy as np
+import progressbar as pb
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.preprocessing import StandardScaler
@@ -42,7 +43,14 @@ class GPSurrogate(SurrogateModel):
     @time_it(only_time=True)
     def fit(self, high_fidelity, num_evals):
         quad_z = self.prior.sample(num_evals)
-        evals = np.concatenate([high_fidelity.eval(z_).reshape(1, -1) for z_ in quad_z.T], axis=0)
+        widgets = ['fit\t', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
+        bar = pb.ProgressBar(maxval=quad_z.T.shape[0], widgets=widgets)
+        evals = []
+        bar.start()
+        for i, z_ in enumerate(quad_z.T):
+            evals.append(high_fidelity.eval(z_).reshape(1, -1))
+            bar.update(i + 1)
+        evals = np.concatenate(evals, axis=0)
         self._fit_subroutine(quad_z, evals)
         self._fit = True
 

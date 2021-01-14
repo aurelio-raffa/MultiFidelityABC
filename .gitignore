@@ -5,3 +5,4 @@ outputs/
 **/*.pyc
 *.pyc
 images/
+source/problems/hyperelastic/hauseux_et_al/
