@@ -28,25 +28,25 @@ def main():
     dim = 3
     tol = 1e-5                              # tol is used for not drawing nodes from the boundary
     num_data = 100                          # sample's dimension of data collected
-    noise_sigma = .07                        # since we generate the data we add some artificial noise
-    physical_true_z = np.array([.25, .75, .15])
+    noise_sigma = .3                        # since we generate the data we add some artificial noise
+    physical_true_z = np.array([.25, .55, .35])
 
     # distribution parameters
     prior_means = np.array([0., 0., .0])
-    prior_sigmas = np.array([1.5, 1.5, 1.5])
-    proposal_sigmas = np.array([.007, .005, .002])
+    prior_sigmas = np.array([1.5, 1.8, 1.6])
+    proposal_sigmas = np.array([.01, .01, .01])
     inv_gamma_parameters = np.array([2.1, .02])
 
     # MCMC parameters
-    samples = 10000
+    samples = 50000
     subchain_len = 1000
     upper_th = 1e-4
     error_th = 1e-2
-    init_z = np.array([.0, .0, .0])
+    init_z = np.array([.15, .3, .1])
     init_sigma = 1.
-    init_radius = .1
+    init_radius = .25
     rho = .9
-    burn = 1000
+    burn = 6000
 
     # surrogate parameters
     use_gpr = False
@@ -126,7 +126,7 @@ def main():
         hfm, low_fi_models, quad_points,
         proposal, full_cnd_sigma2, init_z, init_sigma,
         samples, subchain_len, upper_th, error_th, init_radius, rho,
-        remap_functions=[inv_logit, inv_logit, None])
+        remap_functions=[inv_logit, inv_logit, inv_logit, None])
 
     # displaying results
     diagnostics_report(
