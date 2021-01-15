@@ -28,23 +28,23 @@ def main():
     dim = 3
     tol = 1e-5                              # tol is used for not drawing nodes from the boundary
     num_data = 100                          # sample's dimension of data collected
-    noise_sigma = .3                        # since we generate the data we add some artificial noise
+    noise_sigma = .15                        # since we generate the data we add some artificial noise
     physical_true_z = np.array([.25, .55, .35])
 
     # distribution parameters
-    prior_means = np.array([0., 0., .0])
-    prior_sigmas = np.array([1.5, 1.8, 1.6])
+    prior_means = np.array([.15, .3, .25])
+    prior_sigmas = np.array([1.2, 1.8, 1.4])
     proposal_sigmas = np.array([.01, .01, .01])
-    inv_gamma_parameters = np.array([2.1, .02])
+    inv_gamma_parameters = np.array([2.1, .4])
 
     # MCMC parameters
-    samples = 50000
+    samples = 60000
     subchain_len = 1000
     upper_th = 1e-4
     error_th = 1e-2
-    init_z = np.array([.15, .3, .1])
-    init_sigma = 1.
-    init_radius = .25
+    init_z = np.array([.15, .3, .15])
+    init_sigma = .8
+    init_radius = .1
     rho = .9
     burn = 6000
 
@@ -58,9 +58,9 @@ def main():
     equation = (-5.0)
     data_gen_forward_model = PoissonSubdomainEquation(
         np.array([256, 256]), 1, 0.1, kappa_domain, equation,
-        np.array([.35, .55, .2]), '0')
+        np.array([.30, .60, .25]), '0')
 
-   # generation of the dataset
+    # generation of the dataset
     true_z = logit(physical_true_z)
     x = np.random.uniform(0 + tol, 1 - tol, size=(2, num_data))
     true_data = data_gen_forward_model(true_z, x)
@@ -79,18 +79,10 @@ def main():
         [0 + tol, 1 - tol], [0 + tol, 1 - tol], displacement, step=.025, angles=(35, 110), show=False)
     points_plot(fig, ax, x, data, color=noise)
 
-
-
-     # forward model for the MCMCs
+    # forward model for the MCMCs
     forward_model = PoissonSubdomainEquation(
         np.array([64, 64]), 1, 0.1, kappa_domain, equation,
-        np.array([.35, .55, .2]), '0')
-
-
-
-
-
-
+        np.array([.30, .50, .25]), '0')
 
     # useful distributions and densities
     def log_prior(z_):
@@ -132,7 +124,7 @@ def main():
     diagnostics_report(
         method_names, exec_times, exec_calls, fit_times, fit_calls,
         len(low_fi_models), samples, burn, mh_samples)
-    visual_inspection(dim, method_names, mh_samples, samples, burn)
+    visual_inspection(dim, method_names, mh_samples, samples, burn, save=True)
 
 
 if __name__ == '__main__':
