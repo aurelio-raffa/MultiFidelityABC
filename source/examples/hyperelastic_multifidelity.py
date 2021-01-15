@@ -27,33 +27,33 @@ def main():
 
     # problem parameters
     dim = 2
-    num_data = 100                                  # sample's dimension of data collected
-    noise_sigma = .2                                # since we generate the data we add some artificial noise
-    true_z = np.array((10., -1.5))                  # to avoid numerical instability, z[0] should be between 9 and 17
+    num_data = 75                                   # sample's dimension of data collected
+    noise_sigma = .15                               # since we generate the data we add some artificial noise
+    true_z = np.array((11.5, -1.5))                 # to avoid numerical instability, z[0] should be between 9 and 17
 
     # distribution parameters
     param_remappers = [lambda v: np.exp(v), lambda v: np.exp(-1. - np.exp(v))]
-    prior_means = np.array([13., 0.])
-    prior_sigmas = np.array([1., 5.])
-    proposal_sigmas = [.075, 3.]                    # we set up a RW chain on z[0] and an independent chain on z[1]
+    prior_means = np.array([14, 0.])
+    prior_sigmas = np.array([1., 4.])
+    proposal_sigmas = [.3, 5.]                      # we set up a RW chain on z[0] and an independent chain on z[1]
     proposal_mus = [None, 0.]                       # (mu = None in the proposal flags a RW chain)
     inv_gamma_parameters = np.array([2.01, .03])
 
     # MCMC parameters
-    samples = 10000
+    samples = 6000
     subchain_len = 500
     upper_th = 1e-4
     error_th = 1e-2
-    init_z = np.array([13., 1.])
+    init_z = prior_means
     init_variance = .05
-    init_radius = .05
-    rho = .9
-    burn = 2000
+    init_radius = 2.
+    rho = .85
+    burn = 4000
 
     # surrogate parameters
     use_gpr = True
-    quad_points = 100
-    multi_fidelity_q = 25
+    quad_points = 50
+    multi_fidelity_q = 10
 
     # definition of the forward model for data generation - finer grid to avoid inverse crimes
     eval_times = np.arange(.25, 1., .25)
@@ -125,7 +125,8 @@ def main():
     hfm = HighFidelityModel(
         forward_model, data, x, log_err_density, log_prior)
     lfm = PCESurrogate(data, log_err_density, prior, log_prior, 2, multi_fidelity_q)
-    gps = GPSurrogate(data, log_err_density, prior, log_prior, RBF(.1), multi_fidelity_q)
+    gps = GPSurrogate(
+        data, log_err_density, prior, log_prior, RBF(.6), multi_fidelity_q, n_restarts_optimizer=5, alpha=1e-3)
 
     if use_gpr:
         low_fi_models = [lfm, gps]

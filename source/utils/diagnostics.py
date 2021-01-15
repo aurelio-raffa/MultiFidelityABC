@@ -76,7 +76,7 @@ def show_or_save(plotname='plot', save=False, show=True):
         plt.show()
 
 
-def visual_inspection(dim, method_names, mh_samples, samples, burn, figsize=(15, 10), save=False):
+def visual_inspection(dim, method_names, mh_samples, samples, burn, figsize=(20, 15), save=False):
     plt.figure(figsize=figsize)
     plot_names = ['parameter {}'.format(i + 1) for i in range(dim)] + ['variance']
     cycle = plt.rcParams['axes.prop_cycle'].by_key()['color']

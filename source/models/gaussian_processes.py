@@ -9,7 +9,7 @@ from source.utils.decorators import time_it
 
 
 class GPSurrogate(SurrogateModel):
-    def __init__(self, data, log_error_density, prior, log_prior, kernel, multi_fidelity_q):
+    def __init__(self, data, log_error_density, prior, log_prior, kernel, multi_fidelity_q, **gpr_kwargs):
         """
         This class creates a surrogate Gaussian Process Model for the forward model G(.)
         :param data: numpy.array, sample of observed values of the forward model
@@ -31,9 +31,11 @@ class GPSurrogate(SurrogateModel):
         self.kernel = kernel
         self.regressors = []
         self.scalers = []
+        self._gpr_kwargs = gpr_kwargs
 
     def _fit_subroutine(self, quad_points, true_evals):
-        regressor = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, copy_X_train=False)
+        regressor = GaussianProcessRegressor(
+            kernel=self.kernel, normalize_y=True, copy_X_train=True, **self._gpr_kwargs)
         scaler = StandardScaler()
         adj_quad = scaler.fit_transform(quad_points.T)
         regressor.fit(adj_quad, true_evals)
