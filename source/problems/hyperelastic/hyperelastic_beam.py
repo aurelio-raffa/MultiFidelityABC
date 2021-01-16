@@ -105,8 +105,8 @@ class HyperelasticBeam:
 
         # solving
         if x is not None:
-            numeric_evals = np.zeros(shape=(*x.shape, len(self.times)))
-            evals = np.zeros(shape=(*x.shape, len(self.eval_times)))
+            numeric_evals = np.zeros(shape=(x.shape[1], len(self.times)))
+            evals = np.zeros(shape=(x.shape[1], len(self.eval_times)))
         else:
             numeric_evals = None
             evals = None
@@ -114,13 +114,12 @@ class HyperelasticBeam:
             self.time.t = t
             self.solver(ff == 0, u, self.bcs, J=jj, bcs=self.bcs, solver_parameters=self.solver_parameters)
             if x is not None:
-                numeric_evals[:, :, it] = np.array([u(x_) for x_ in x.T]).T
+                numeric_evals[:, it] = np.array([u(x_)[2] for x_ in x.T]).T
 
         # time-interpolation
         if x is not None:
             for i in range(evals.shape[0]):
-                for j in range(evals.shape[1]):
-                    evals[i, j, :] = np.interp(self.eval_times, self.times, numeric_evals[i, j, :])
+                evals[i, :] = np.interp(self.eval_times, self.times, numeric_evals[i, :])
         return (evals, u) if x is not None else u
 
     def __call__(self, z, x, reshape=True, retall=False):

@@ -27,26 +27,26 @@ def main():
 
     # problem parameters
     dim = 2
-    num_data = 75                                   # sample's dimension of data collected
-    noise_sigma = .15                               # since we generate the data we add some artificial noise
-    true_z = np.array((11.5, -1.5))                 # to avoid numerical instability, z[0] should be between 9 and 17
+    num_data = 120                                  # sample's dimension of data collected
+    noise_sigma = .05                               # since we generate the data we add some artificial noise
+    true_z = np.array((11., -1.5))                  # to avoid numerical instability, z[0] should be between 9 and 17
 
     # distribution parameters
     param_remappers = [lambda v: np.exp(v), lambda v: np.exp(-1. - np.exp(v))]
-    prior_means = np.array([14, 0.])
-    prior_sigmas = np.array([1., 4.])
-    proposal_sigmas = [.3, 5.]                      # we set up a RW chain on z[0] and an independent chain on z[1]
-    proposal_mus = [None, 0.]                       # (mu = None in the proposal flags a RW chain)
+    prior_means = np.array([12., 0.])
+    prior_sigmas = np.array([.75, 4.])
+    proposal_sigmas = [.025, 3]                     # we set up a RW chain on z[0] and an independent chain on z[1]
+    # proposal_mus = [None, 0.]                       # (mu = None in the proposal flags a RW chain)
     inv_gamma_parameters = np.array([2.01, .03])
 
     # MCMC parameters
-    samples = 6000
+    samples = 10000
     subchain_len = 500
     upper_th = 1e-4
     error_th = 1e-2
     init_z = prior_means
     init_variance = .05
-    init_radius = 2.
+    init_radius = 1.
     rho = .85
     burn = 4000
 
@@ -80,7 +80,7 @@ def main():
     fig, ax = plt.subplots(figsize=(15, 3))
     plt.scatter(x=x[0, :], y=x[2, :], marker='x', s=16, label='original points')
     scatter = plt.scatter(
-        x=x[0, :], y=x[2, :] + orig_data[2, :, -1], c=orig_noise[2, :, -1],
+        x=x[0, :], y=x[2, :] + orig_data[:, -1], c=orig_noise[:, -1],
         cmap='coolwarm', label='final positions')
     fig.colorbar(scatter, shrink=.5)
 
@@ -118,7 +118,7 @@ def main():
 
     prior = cpy.J(*[cpy.Normal(m, s) for m, s in zip(prior_means, prior_sigmas)])
     log_err_density = GaussDensity(.1)
-    proposal = IndComponentsGaussian(sigmas=proposal_sigmas, mus=proposal_mus)
+    proposal = IndComponentsGaussian(sigmas=proposal_sigmas)
     full_cnd_sigma2 = CondInvGamma(*inv_gamma_parameters)
 
     # models
