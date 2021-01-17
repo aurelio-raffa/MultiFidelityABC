@@ -82,7 +82,7 @@ class PCESurrogate(SurrogateModel):
         self._fit = True
 
     def _eval_subroutine(self, z):
-        return self.proxy(*z)
+        return self.proxy(*z) if type(z) is np.ndarray else self.proxy(z)
 
     def multi_fidelity_update(self, y, radius, high_fidelity):
         """

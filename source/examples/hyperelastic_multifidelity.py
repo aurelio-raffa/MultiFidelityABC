@@ -26,49 +26,53 @@ def main():
     np.random.seed(1226)
 
     # problem parameters
-    dim = 2
-    num_data = 120                                  # sample's dimension of data collected
-    noise_sigma = .05                               # since we generate the data we add some artificial noise
-    true_z = np.array((11., -1.5))                  # to avoid numerical instability, z[0] should be between 9 and 17
+    dim = 1
+    num_data = 25                                   # sample's dimension of data collected
+    noise_sigma = 1.25                              # since we generate the data we add some artificial noise
+    true_z = 11.                                    # to avoid numerical instability, z should be between 9 and 17
 
     # distribution parameters
-    param_remappers = [lambda v: np.exp(v), lambda v: np.exp(-1. - np.exp(v))]
-    prior_means = np.array([12., 0.])
-    prior_sigmas = np.array([.75, 4.])
-    proposal_sigmas = [.025, 3]                     # we set up a RW chain on z[0] and an independent chain on z[1]
-    # proposal_mus = [None, 0.]                       # (mu = None in the proposal flags a RW chain)
-    inv_gamma_parameters = np.array([2.01, .03])
+    def param_remapper(v):
+        return np.exp(v)
+
+    prior_mean = 14.
+    prior_sigma = 1.
+    proposal_sigma = .20                            # we set up a RW chain on z[0] and an independent chain on z[1]
+    inv_gamma_parameters = np.array([3., 2.])
 
     # MCMC parameters
-    samples = 10000
-    subchain_len = 500
+    samples = 15000
+    subchain_len = 1000
     upper_th = 1e-4
     error_th = 1e-2
-    init_z = prior_means
+    init_z = prior_mean
     init_variance = .05
-    init_radius = 1.
+    init_radius = .5
     rho = .85
-    burn = 4000
+    burn = 3000
 
     # surrogate parameters
     use_gpr = True
-    quad_points = 50
-    multi_fidelity_q = 10
+    quad_points = 20
+    multi_fidelity_q = 20
 
     # definition of the forward model for data generation - finer grid to avoid inverse crimes
     eval_times = np.arange(.25, 1., .25)
     lx, ly, lz = 1., .1, .1
     data_gen_forward_model = HyperelasticBeam(
         eval_times=eval_times, lx=lx, ly=ly, lz=lz,
-        param_remappers=param_remappers, time=1.25)
+        param_remapper=param_remapper, time=1.25)
 
     # forward model for the MCMCs
     forward_model = HyperelasticBeam(
         eval_times=eval_times, lx=lx, ly=ly, lz=lz,
-        param_remappers=param_remappers, n=5, timestep=.3, time=1.25)
+        param_remapper=param_remapper, n=5, timestep=.3, time=1.25)
 
     # generation of the dataset
-    x = np.random.uniform(0, 1, size=(3, num_data)) * np.array([lx, ly, lz]).reshape((-1, 1))
+    x = np.concatenate([
+        lx * np.random.uniform(.2, .8, size=(1, num_data)),
+        ly * np.random.uniform(0., 1., size=(1, num_data)),
+        np.zeros(shape=(1, num_data))])
     orig_data, last_sol = data_gen_forward_model(true_z, x, reshape=False, retall=True)
     _, proxy_solution = forward_model(true_z, x, reshape=False, retall=True)
     true_data = orig_data.flatten()
@@ -80,7 +84,7 @@ def main():
     fig, ax = plt.subplots(figsize=(15, 3))
     plt.scatter(x=x[0, :], y=x[2, :], marker='x', s=16, label='original points')
     scatter = plt.scatter(
-        x=x[0, :], y=x[2, :] + orig_data[:, -1], c=orig_noise[:, -1],
+        x=x[0, :], y=x[2, :] - np.exp(orig_data[:, -1] + orig_noise[:, -1]), c=orig_noise[:, -1],
         cmap='coolwarm', label='final positions')
     fig.colorbar(scatter, shrink=.5)
 
@@ -114,11 +118,11 @@ def main():
 
     # useful distributions and densities
     def log_prior(z_):
-        return -np.sum((z_ - prior_means) ** 2 / (2 * prior_sigmas ** 2))
+        return -(z_ - prior_mean) ** 2 / (2 * prior_sigma ** 2)
 
-    prior = cpy.J(*[cpy.Normal(m, s) for m, s in zip(prior_means, prior_sigmas)])
+    prior = cpy.Normal(prior_mean, prior_sigma)
     log_err_density = GaussDensity(.1)
-    proposal = IndComponentsGaussian(sigmas=proposal_sigmas)
+    proposal = GaussDensity(proposal_sigma)
     full_cnd_sigma2 = CondInvGamma(*inv_gamma_parameters)
 
     # models

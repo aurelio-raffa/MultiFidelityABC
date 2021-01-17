@@ -10,7 +10,10 @@ class GaussDensity:
         return np.sum(-x_**2/(2*self.sigma**2)) if self.mu is None else np.sum(-(x_-self.mu)**2/(2*self.sigma**2))
 
     def draw(self, z):
-        return np.random.normal(z if self.mu is None else self.mu, self.sigma, size=z.shape)
+        if type(z) is np.ndarray:
+            return np.random.normal(z if self.mu is None else self.mu, self.sigma, size=z.shape)
+        else:
+            return np.random.normal(z if self.mu is None else self.mu, self.sigma)
 
     def logdensity(self, z1, z2):
         return np.sum(self(z1 - z2)) if self.mu is None else np.sum(self(z1))

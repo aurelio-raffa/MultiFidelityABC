@@ -19,7 +19,7 @@ class HyperelasticBeam:
     def __init__(
             self, eval_times, n=10, lx=1., ly=.1, lz=.1,
             f=(0.0, 0.0, -50.), time=1., timestep=.1,
-            tol=1e-5, max_iter=30, rel_tol=1e-10, param_remappers=None):
+            tol=1e-5, max_iter=30, rel_tol=1e-10, param_remapper=None):
 
         # solver parameters
         self.solver = CountIt(solve)
@@ -32,7 +32,7 @@ class HyperelasticBeam:
                 'relative_tolerance': rel_tol,
                 'report': False,
                 'error_on_nonconvergence': False}}
-        self.param_remappers = param_remappers
+        self.param_remapper = param_remapper
 
         # mesh creation
         self.n = n
@@ -73,35 +73,35 @@ class HyperelasticBeam:
 
     def _solve(self, z, x=None):
         # problem variables
-        du = TrialFunction(self.V)          # incremental displacement
-        v = TestFunction(self.V)            # test function
-        u = Function(self.V)                # displacement from previous iteration
+        du = TrialFunction(self.V)                          # incremental displacement
+        v = TestFunction(self.V)                            # test function
+        u = Function(self.V)                                # displacement from previous iteration
 
         # kinematics
-        ii = Identity(3)                    # identity tensor dimension 3
-        f = ii + grad(u)                    # deformation gradient
-        c = f.T * f                         # right Cauchy-Green tensor
+        ii = Identity(3)                                    # identity tensor dimension 3
+        f = ii + grad(u)                                    # deformation gradient
+        c = f.T * f                                         # right Cauchy-Green tensor
 
         # invariants of deformation tensors
         ic = tr(c)
         j = det(f)
 
         # elasticity parameters
-        params = deepcopy(z)
-        if self.param_remappers is not None:
-            for i, (fun_, z_) in enumerate(zip(self.param_remappers, z)):
-                params[i] = fun_(z_) if fun_ is not None else z_
+        if type(z) in [list, np.ndarray]:
+            param = self.param_remapper(z[0]) if self.param_remapper is not None else z[0]
+        else:
+            param = self.param_remapper(z) if self.param_remapper is not None else z
 
-        e_var = variable(Constant(params[0]))    # Young's modulus
-        nu = Constant(params[1])              # Shear modulus (Lamè's second parameter)
+        e_var = variable(Constant(param))                  # Young's modulus
+        nu = Constant(.3)                                   # Shear modulus (Lamè's second parameter)
         mu, lmbda = e_var / (2 * (1 + nu)), e_var * nu / ((1 + nu) * (1 - 2 * nu))
 
         # strain energy density, total potential energy
         psi = (mu / 2) * (ic - 3) - mu * ln(j) + (lmbda / 2) * (ln(j)) ** 2
         pi = psi * dx - self.time * dot(self.f, u) * self.ds(3)
 
-        ff = derivative(pi, u, v)         # compute first variation of pi
-        jj = derivative(ff, u, du)        # compute jacobian of f
+        ff = derivative(pi, u, v)                           # compute first variation of pi
+        jj = derivative(ff, u, du)                          # compute jacobian of f
 
         # solving
         if x is not None:
@@ -114,7 +114,7 @@ class HyperelasticBeam:
             self.time.t = t
             self.solver(ff == 0, u, self.bcs, J=jj, bcs=self.bcs, solver_parameters=self.solver_parameters)
             if x is not None:
-                numeric_evals[:, it] = np.array([u(x_)[2] for x_ in x.T]).T
+                numeric_evals[:, it] = np.log(np.array([-u(x_)[2] for x_ in x.T]).T)
 
         # time-interpolation
         if x is not None:

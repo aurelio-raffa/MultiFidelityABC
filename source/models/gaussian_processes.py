@@ -45,6 +45,8 @@ class GPSurrogate(SurrogateModel):
     @time_it(only_time=True)
     def fit(self, high_fidelity, num_evals):
         quad_z = self.prior.sample(num_evals)
+        if quad_z.ndim == 1:
+            quad_z = quad_z.reshape(1, -1)
         widgets = ['fit\t', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
         bar = pb.ProgressBar(maxval=quad_z.T.shape[0], widgets=widgets)
         evals = []
@@ -59,7 +61,7 @@ class GPSurrogate(SurrogateModel):
     def _eval_subroutine(self, z):
         prediction = np.zeros_like(self.data)
         for regressor, scaler in zip(self.regressors, self.scalers):
-            adj_z = scaler.transform(z.reshape(1, -1))
+            adj_z = scaler.transform(z.reshape(1, -1) if type(z) is np.ndarray else np.array(z).reshape(1, -1))
             prediction += regressor.predict(adj_z).reshape((-1,))
         return prediction
 
