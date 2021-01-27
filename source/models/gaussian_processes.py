@@ -1,4 +1,5 @@
 import numpy as np
+import progressbar as pb
 
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.preprocessing import StandardScaler
@@ -8,7 +9,7 @@ from source.utils.decorators import time_it
 
 
 class GPSurrogate(SurrogateModel):
-    def __init__(self, data, log_error_density, prior, log_prior, kernel, multi_fidelity_q):
+    def __init__(self, data, log_error_density, prior, log_prior, kernel, multi_fidelity_q, **gpr_kwargs):
         """
         This class creates a surrogate Gaussian Process Model for the forward model G(.)
         :param data: numpy.array, sample of observed values of the forward model
@@ -30,9 +31,11 @@ class GPSurrogate(SurrogateModel):
         self.kernel = kernel
         self.regressors = []
         self.scalers = []
+        self._gpr_kwargs = gpr_kwargs
 
     def _fit_subroutine(self, quad_points, true_evals):
-        regressor = GaussianProcessRegressor(kernel=self.kernel, normalize_y=True, copy_X_train=False)
+        regressor = GaussianProcessRegressor(
+            kernel=self.kernel, normalize_y=True, copy_X_train=True, **self._gpr_kwargs)
         scaler = StandardScaler()
         adj_quad = scaler.fit_transform(quad_points.T)
         regressor.fit(adj_quad, true_evals)
@@ -42,14 +45,23 @@ class GPSurrogate(SurrogateModel):
     @time_it(only_time=True)
     def fit(self, high_fidelity, num_evals):
         quad_z = self.prior.sample(num_evals)
-        evals = np.concatenate([high_fidelity.eval(z_).reshape(1, -1) for z_ in quad_z.T], axis=0)
+        if quad_z.ndim == 1:
+            quad_z = quad_z.reshape(1, -1)
+        widgets = ['fit\t', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
+        bar = pb.ProgressBar(maxval=quad_z.T.shape[0], widgets=widgets)
+        evals = []
+        bar.start()
+        for i, z_ in enumerate(quad_z.T):
+            evals.append(high_fidelity.eval(z_).reshape(1, -1))
+            bar.update(i + 1)
+        evals = np.concatenate(evals, axis=0)
         self._fit_subroutine(quad_z, evals)
         self._fit = True
 
     def _eval_subroutine(self, z):
         prediction = np.zeros_like(self.data)
         for regressor, scaler in zip(self.regressors, self.scalers):
-            adj_z = scaler.transform(z.reshape(1, -1))
+            adj_z = scaler.transform(z.reshape(1, -1) if type(z) is np.ndarray else np.array(z).reshape(1, -1))
             prediction += regressor.predict(adj_z).reshape((-1,))
         return prediction
 
