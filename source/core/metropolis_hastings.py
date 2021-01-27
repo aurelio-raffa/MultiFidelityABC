@@ -1,6 +1,8 @@
 import numpy as np
 import progressbar as pb
 
+from source.utils.misc import init_outfile, update_outfile
+
 
 def _get_log_alpha(model, proposal, z_star, z_prev):
     log_denom = model.logposterior(z_prev) + proposal.logdensity(z_star, z_prev)
@@ -16,7 +18,8 @@ def metropolis_hastings(
         init_z,
         init_variance,
         number_of_samples,
-        log=True):
+        log=True,
+        out_path=None):
 
     z_prev = init_z
     variance_prev = init_variance
@@ -29,6 +32,10 @@ def metropolis_hastings(
         widgets = ['MH\t', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
         bar = pb.ProgressBar(maxval=number_of_samples, widgets=widgets)
         bar.start()
+    else:
+        bar = None
+    if out_path is None:
+        out_path = init_outfile(draws.shape[0])
     for iteration in range(number_of_samples):
         z_star = proposal.draw(z_prev)
         model.log_error_density.sigma = variance_prev
@@ -38,6 +45,7 @@ def metropolis_hastings(
         draws[-1, iteration] = variance_prev
         z_prev = z_star
         variance_prev = full_conditional_sigma2.draw(model, z_prev)
+        update_outfile(out_path, z_prev, variance_prev)
         if log:
             bar.update(iteration+1)
     return draws
@@ -60,7 +68,8 @@ def adaptive_multifidelity_mh(
         init_z,
         full_conditional_sigma2,
         init_variance,
-        log=True):
+        log=True,
+        out_path=None):
 
     z_prev = init_z
     variance_prev = init_variance
@@ -72,9 +81,15 @@ def adaptive_multifidelity_mh(
         widgets = ['AMH\t', pb.Percentage(), ' ', pb.Bar('='), ' ', pb.AdaptiveETA(), ' - ', pb.Timer()]
         bar = pb.ProgressBar(maxval=max_iter, widgets=widgets)
         bar.start()
+    else:
+        bar = None
+    if out_path is None:
+        out_path = init_outfile(draws.shape[0])
     for iteration in range(max_iter):
         subchain = metropolis_hastings(
-            full_conditional_sigma2, surrogate, proposal, z_prev, variance_prev, subchain_length - 1, log=False)
+            full_conditional_sigma2, surrogate, proposal,
+            z_prev, variance_prev, subchain_length - 1,
+            log=False, out_path=out_path)
         z_prev = subchain[:len(init_z), -1] if type(z_prev) is np.ndarray else subchain[0, -1]
         variance_prev = subchain[-1, -1]
         surrogate.log_error_density.sigma = variance_prev
@@ -93,6 +108,7 @@ def adaptive_multifidelity_mh(
         draws[-1, (iteration+1) * subchain_length - 1] = variance_prev
         z_prev = z_star
         variance_prev = full_conditional_sigma2.draw(surrogate, z_prev)
+        update_outfile(out_path, z_prev, variance_prev)
         if log:
             bar.update(iteration+1)
     return draws

@@ -19,4 +19,5 @@ class SurrogateModel(ForwardModel):
             new_points = y.reshape(-1, 1) + np.random.uniform(-radius, radius, (y.shape[0], self.multi_fidelity_q))
         else:
             new_points = y + np.random.uniform(-radius, radius, self.multi_fidelity_q)
+            new_points = new_points.reshape(1, -1)
         return new_points
