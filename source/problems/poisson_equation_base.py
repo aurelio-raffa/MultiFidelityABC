@@ -10,66 +10,84 @@ from source.utils.decorators import CountIt
 
 
 class PoissonEquation:
-
+    """Class implementing a linear, 2D Poisson equation on the unit square
+    with Dirichlet boundary conditions. Provides methods to compute a numerical solution
+    (through FEniCS) on a set of spatial points and plot its contour.
+    """
     def __init__(self, grid_shape, f, init_z, dirichlet, degree=1, polynomial_type='P', reparam=True):
+        """Parameters
+        ----------
+        grid_shape : numpy.array or list
+            Defines the grid dimensions of the mesh used to solve the problem.
+        f : str
+            Source term of the Poisson equation in a form accepted by FEniCS (C++ style string)
+        init_z : numpy.ndarray
+            Placeholder value(s) for parameters of the model.
+        dirichlet : str
+            Dirichlet boundary conditions in string form accepted by FEniCS.
+        degree : int, default 1
+            Polynomial degree for the functional space.
+        polynomial_type : str, default 'P'
+            String encoding the type of polynomials in the functional space, according to FEniCS conventions
+            (defaults to Lagrange polynomials).
+        reparam: bool, default True
+            Boolean indicating whether input parameters are to be reparametrized according to
+            an inverse-logit transform.
         """
-        This class represents the Poisson equation and an object of this class can be
-        used as callable object in order to obtain the value of the solution in the
-        spatial nodes of interest. It provides also a method for displaying the contour
-        plot.
-        :param grid_shape: numpy.array, it is used to define the mesh used by fenics
-                           library for approximating the solution of the pde
-        :param f: str, it is the expression of the right member of the Poisson equation
-        :param init_z: numpy.array, it represents the parameter (in general multidimensional)
-                       from which the equation depends
-        :param dirichlet: str, it is the expression for the boundary conditions
-        :param degree: int, it specifies the degree of the polynomials in the
-                       function space
-        :param polynomial_type: str, it specifies the type of the polynomials
-                                in the function space
-        """
-
         def boundary(x, on_boundary):
             return on_boundary
 
         self.grid_shape = grid_shape
         self.mesh = UnitSquareMesh(*grid_shape)
-        # creo finite dim function space
-        # che significa polinomial_type di tipo 'P' ? ==> P lagrange polynomial
+
         self.V = FunctionSpace(self.mesh, polynomial_type, degree)
         self.dirichlet = DirichletBC(self.V, Expression(dirichlet, degree=degree + 3), boundary)
         self._paramnames = ['param{}'.format(i) for i in range(len(init_z))]
         self.f = Expression(f, degree=degree, **dict(zip(self._paramnames, init_z)))
         u = TrialFunction(self.V)
         v = TestFunction(self.V)
-        # da qui in poi ho la riscrittura del problema in forma variazionale
+
         self.a = dot(grad(u), grad(v)) * dx
         self.L = self.f * v * dx
         self.u = Function(self.V)
         self.reparam = reparam
         self.solver = CountIt(solve)
 
-    # qui z è in generale un vettore di parametri, nel nostro esempio bidimensionale
     def _solve(self, z):
-        if self.reparam:                                    # MODIFIED
+        if self.reparam:
             z = logistic.cdf(z)
         for key, val in zip(self._paramnames, z):
             self.f.user_parameters[key] = val
         self.solver(self.a == self.L, self.u, self.dirichlet)
 
-    # z vettore di parametri, mentre x una matrice 2xn nel caso ho n nodi e problema bidimensionale
     def __call__(self, z, x):
-        """
-        returns the log of the solution of the Poisson equation for the parameters z
-        in the spatial nodes x
-        :param z: numpy.array, parameter values for the equation
-        :param x: numpy.array, matrix whose columns are the spatial nodes
-        :return: numpy.array, log of the solution of the Poisson equation
+        """Returns the logarithm of the solution to the Poisson equation for the parameters `z`
+        in the spatial nodes `x`.
+
+        Parameters
+        ----------
+        z : numpy.array
+            Parameter values for the equation.
+        x : numpy.array
+            Matrix whose columns are the spatial nodes.
+
+        Returns
+        -------
+        numpy.ndarray
+            Logarithm of the solution of the Poisson equation.
         """
         self._solve(z)
         return np.array([np.log(self.u(x_)) for x_ in x.T])
 
     def plot(self, z):
+        """Plots the logarithm of the solution to the Poisson equation for the parameters `z`
+        on the domain (unit square).
+
+        Parameters
+        ----------
+        z : numpy.array
+            Parameter values for the equation.
+        """
         self._solve(z)
         plt.figure()
         plt.contourf(

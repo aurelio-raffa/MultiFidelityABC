@@ -4,11 +4,12 @@ import numpy as np
 
 from datetime import datetime
 
+root_dir = '../../outputs/'
+
 
 def init_outfile(nvars):
     now = datetime.now()
     now_to_string = now.strftime("%Y_%m_%d@%H_%M_%S")
-    root_dir = '../../outputs/'
     filename = 'MH_{}.csv'.format(now_to_string)
     path = os.path.join(root_dir, filename)
     with open(path, 'w') as outfile:
