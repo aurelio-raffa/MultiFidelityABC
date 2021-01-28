@@ -15,12 +15,42 @@ from source.utils.decorators import CountIt
 
 
 class HyperelasticBeam:
-
+    """Class implementing the solution to a hyperelastic problem on a deformable beam.
+    """
     def __init__(
             self, eval_times, n=10, lx=1., ly=.1, lz=.1,
             f=(0.0, 0.0, -50.), time=1., timestep=.1,
             tol=1e-5, max_iter=30, rel_tol=1e-10, param_remapper=None):
-
+        """Parameters
+        ----------
+        eval_times: numpy.ndarray
+            Times at which evaluation (interpolation) of the solution is required.
+        n: int, default 10
+            Dimension of the grid along the smallest side of the beam
+            (the grid size along all other dimensions will be scaled proportionally.
+        lx: float, default 1.
+            Length of the beam along the x axis.
+        ly: float, default .1
+            Length of the beam along the y axis.
+        lz: float, default .1
+            Length of the beam along the z axis.
+        f: tuple or numpy.ndarray, default (0.0, 0.0, -50.)
+            Force per unit volume acting on the beam.
+        time: float, default 1.
+            Final time of the simulation.
+        timestep: float, default 1.
+            Time discretization step to solve the problem.
+        tol: float, default 1e-5
+            Tolerance parameter to ensure the last time step is included in the solution.
+        max_iter: int, default 30
+            Maximum iterations for the SNES solver.
+        rel_tol: int,
+            Relative tolerance for the convergence of the SNES solver.
+        param_remapper: object, default None
+            Either None (no remapping of the parameters), or a function remapping
+            the parameter of the problem (Young's modulus) to values suitable for the
+            definition of the solution.
+        """
         # solver parameters
         self.solver = CountIt(solve)
         self.solver_parameters = {
@@ -92,7 +122,7 @@ class HyperelasticBeam:
         else:
             param = self.param_remapper(z) if self.param_remapper is not None else z
 
-        e_var = variable(Constant(param))                  # Young's modulus
+        e_var = variable(Constant(param))                   # Young's modulus
         nu = Constant(.3)                                   # Shear modulus (Lamè's second parameter)
         mu, lmbda = e_var / (2 * (1 + nu)), e_var * nu / ((1 + nu) * (1 - 2 * nu))
 
@@ -123,10 +153,42 @@ class HyperelasticBeam:
         return (evals, u) if x is not None else u
 
     def __call__(self, z, x, reshape=True, retall=False):
+        """Solves the equation for the provided parameter `z` and returns the evaluation
+        for each one of the nodes in `x` and each evaluation time instant (passed at creation).
+
+        Parameters
+        ----------
+        z : float or numpy.ndarray
+            Value of the parameter (Young's modulus); if `z` is a vector, it has to have
+            only one cell (the rest will not be considered).
+        x : numpy.ndarray
+            Matrix containing the coordinates of the points at which the solution has to be evaluated
+            (one column per each point).
+        reshape : bool, default True
+            If `reshape` is set to True, then the results of the evaluations at different time points will
+            be concatenated into a single vector, otherwise they are returned as a matrix whose columns
+            correspond to values at different evaluation timesteps.
+        retall : bool, default False
+            If set to True, then also the solution at the last computed time step is returned.
+
+        Returns
+        -------
+        numpy.ndarray or (numpy.ndarray, object)
+            The vector or matrix of evaluation and additionally the FEniCS solution object
+            (if `retall` was set to true).
+        """
         evals, u = self._solve(z, x)
         evals = evals.flatten() if reshape else evals
         return (evals, u) if retall else evals
 
     def plot(self, z):
+        """Solves the problem and then plots the beam with a colormap corresponding to the displacement.
+
+        Parameters
+        ----------
+        z : float or numpy.ndarray
+            Value of the parameter (Young's modulus); if `z` is a vector, it has to have
+            only one cell (the rest will not be considered).
+        """
         u = self._solve(z)
         vplot(u)

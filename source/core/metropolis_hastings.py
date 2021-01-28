@@ -20,7 +20,34 @@ def metropolis_hastings(
         number_of_samples,
         log=True,
         out_path=None):
+    """Metropolis-within-Gibbs MCMC routine based on log-densities.
 
+    Parameters
+    ----------
+    full_conditional_sigma2 : object
+        Object with a `draw` method to sample from the varianceàs full conditional.
+    model : ForwardModel
+        Instance of a subclass of ForwardModel.
+    proposal : object
+        Object with a `draw` and a `logdensity` method to (respectively) draw a proposal
+        sample and evaluate the log-density at a new point given the previous.
+    init_z : float or np.ndarray
+        Initial value for the parameter(s) of the forward model.
+    init_variance : float
+        The initial value of the noise variance.
+    number_of_samples : int
+        Number of samples to be extracted.
+    log : bool, default True
+        Whether to display a progress bar for the algorithm containing an estimate of the ETA.
+    out_path : str or None, default None
+        Path to a .csv file where to store samples of the chain. If None is provided,
+        a new timestamped file will be automatically opened
+
+    Returns
+    -------
+    numpy.ndarray
+        A matrix containing the MCMC sample for each parameter and for the variance.
+    """
     z_prev = init_z
     variance_prev = init_variance
 
@@ -51,7 +78,7 @@ def metropolis_hastings(
     return draws
 
 
-def __eval_error(model1, model2, y):
+def _eval_error(model1, model2, y):
     return np.max(np.abs(model1.eval(y) - model2.eval(y)))
 
 
@@ -70,7 +97,49 @@ def adaptive_multifidelity_mh(
         init_variance,
         log=True,
         out_path=None):
+    """Adaptive Metropolis-within-Gibbs MCMC routine based on log-densities.
 
+    Parameters
+    ----------
+    subchain_length : int
+        The number of MCMC steps to perform on the low-fidelity surrogate before
+        a multi-fidelity update.
+    max_iter : int
+        The number of multi fidelity updates to perform (at most).
+    upper_threshold : float
+        The threshold for the infinite-norm error under which we reduce the readius of sampling
+        for points in the multi-fidelity update.
+    error_threshold : float
+        Error threshold over which we trigger a multi-fidelity update of the surrogate.
+    init_radius : float
+        Initial value of the radius within which to sample points in the multi-fidelity update.
+    rho_factor : float
+        Factor of reduction of the radius every time the error is below the `upper_threshold`.
+    surrogate : SurrogateModel
+        The surrogate to be used in the subchains and in the multi-fidelity updates.
+    high_fidelity : HighFidelityModel
+        The true model.
+    proposal : object
+        Object with a `draw` and a `logdensity` method to (respectively) draw a proposal
+        sample and evaluate the log-density at a new point given the previous.
+    init_z : float or np.ndarray
+        Initial value for the parameter(s) of the forward model.
+    full_conditional_sigma2 : object
+        Object with a `draw` method to sample from the varianceàs full conditional.
+    init_variance : float
+        The initial value of the noise variance.
+    log : bool, default True
+        Whether to display a progress bar for the algorithm containing an estimate of the ETA.
+    out_path : str or None, default None
+        Path to a .csv file where to store samples of the chain. If None is provided,
+        a new timestamped file will be automatically opened
+
+    Returns
+    -------
+    numpy.ndarray
+        A matrix containing the MCMC sample for each parameter and for the variance;
+        the dimension of the output matrix is (<num_params> + 1) * (`subchain_length` * `max_iter`).
+    """
     z_prev = init_z
     variance_prev = init_variance
     if type(init_z) is np.ndarray:
@@ -97,10 +166,10 @@ def adaptive_multifidelity_mh(
         z_star = proposal.draw(z_prev)
         log_alpha = _get_log_alpha(high_fidelity, proposal, z_star, z_prev)
         y = z_star if np.log(np.random.uniform(0, 1)) < log_alpha else z_prev
-        if __eval_error(high_fidelity, surrogate, y) > error_threshold:
+        if _eval_error(high_fidelity, surrogate, y) > error_threshold:
             surrogate.multi_fidelity_update(y, init_radius, high_fidelity)
-            if __eval_error(high_fidelity, surrogate, y) < upper_threshold:
-                init_radius /= rho_factor
+            if _eval_error(high_fidelity, surrogate, y) < upper_threshold:
+                init_radius *= rho_factor
         beta = _get_log_alpha(surrogate, proposal, z_star, z_prev)
         z_star = z_star if np.random.uniform(0, 1) < beta else z_prev
         draws[:, iteration * subchain_length:(iteration+1) * subchain_length - 1] = subchain

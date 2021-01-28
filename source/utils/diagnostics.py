@@ -17,6 +17,8 @@ from statsmodels.graphics.tsaplots import plot_acf
 
 from source.core.metropolis_hastings import metropolis_hastings, adaptive_multifidelity_mh
 
+root_dir = '../../images/'
+
 
 def diagnostics_report(
         method_names,
@@ -66,7 +68,6 @@ def show_or_save(plotname='plot', save=False, show=True):
     if (sys.platform == 'linux' and show) or save:
         now = datetime.now()
         now_to_string = now.strftime("%Y_%m_%d@%H_%M_%S")
-        root_dir = '../../images/'
         filename = '{}_{}.jpg'.format(plotname, now_to_string)
         if not os.path.isdir(root_dir):
             os.mkdir(root_dir)
