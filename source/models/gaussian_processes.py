@@ -9,23 +9,28 @@ from source.utils.decorators import time_it
 
 
 class GPSurrogate(SurrogateModel):
+    """Implements a low-fidelity surrogate approximating the forward
+    model through Gaussian Process Regression.
+    """
     def __init__(self, data, log_error_density, prior, log_prior, kernel, multi_fidelity_q, **gpr_kwargs):
-        """
-        This class creates a surrogate Gaussian Process Model for the forward model G(.)
-        :param data: numpy.array, sample of observed values of the forward model
-                     in the spatial nodes
-        :param log_error_density: function, it computes the log density at the input
-                                  vector (used for computing the likelihood, passing
-                                  as input the difference between the data and the
-                                  vector of the evaluations of the surrogate model
-                                  in the corresponding spatial nodes for a fixed
-                                  parameter z)
-        :param prior: chaospy.Iid, object that represents the prior of the parameter
-        :param log_prior: function, it computes the log prior at the input vector
-                          (usually vector of parameters)
-        :param kernel: kernel instance, hyperparameter of the GPR
-        :param multi_fidelity_q: int, it indicates the number of drawn parameter
-                                 samples when I update the low fidelity model
+        """Parameters
+        ----------
+        data : numpy.ndarray
+            Sample of observed values of the forward model in the spatial nodes.
+        log_error_density : function or callable object
+            It computes the log density at the input vector (used for computing the likelihood, passing
+            as input the difference between the data and the vector of the evaluations of the surrogate model
+            in the corresponding spatial nodes for a fixed  parameter z).
+        prior : object
+            Object that represents the prior of the parameter from chaospy.distributions.
+        log_prior : function or callable object
+            It computes the log prior at the input vector (of parameters).
+        kernel : object
+            The kernel to be fed to scikit.gaussian_process.GaussianProcessRegressor
+        multi_fidelity_q : int
+            Number of points to be drawn when performing a multi-fidelity update.
+        **gpr_kwargs : optional
+            Keyword additional arguments to be passed to scikit.gaussian_process.GaussianProcessRegressor
         """
         super().__init__(data, log_error_density, prior, log_prior, multi_fidelity_q)
         self.kernel = kernel
@@ -44,6 +49,16 @@ class GPSurrogate(SurrogateModel):
 
     @time_it(only_time=True)
     def fit(self, high_fidelity, num_evals):
+        """Fits the low-fidelity surrogate via Gaussian Process Regression.
+
+        Parameters
+        ----------
+        high_fidelity : HighFidelityModel
+            Model that we want to approximate through the low-fidelity.
+        num_evals : int
+            Number of evaluations required to construct the low-fidelity surrogate
+            (sampled randomly from the prior).
+        """
         quad_z = self.prior.sample(num_evals)
         if quad_z.ndim == 1:
             quad_z = quad_z.reshape(1, -1)

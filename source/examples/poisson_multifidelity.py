@@ -49,7 +49,7 @@ def main():
     burn = 2000
 
     # surrogate parameters
-    use_gpr = False
+    use_gpr = True
     quad_points = 20
     multi_fidelity_q = 12
 
