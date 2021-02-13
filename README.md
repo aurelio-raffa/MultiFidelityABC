@@ -24,17 +24,11 @@ repository and run
     conda create --name myenv --file requirements_osx-64.txt
     ```
 
-* if instead your operative system is Ubuntu, you can navigate to the same folder and execute the following command:
-    ```bash
-    conda create --name myenv --file requirements_ubuntu-64.txt
-    ```
-
 unfortunately as of today it is not possible to install the `fenics` package on Windows OS, 
 so please in this case install [Windows Subsystem for Linux (WSL)](https://docs.microsoft.com/en-us/windows/wsl/install-win10)
-and then refer to the procedure for Ubuntu. More information can be found on the website of the [FEniCS Project](https://fenicsproject.org).
+and then refer to the procedure found on the website of the [FEniCS Project](https://fenicsproject.org).
 
 <br>
-
 
 ## Examples
 
