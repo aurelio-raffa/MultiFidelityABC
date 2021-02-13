@@ -18,9 +18,20 @@ class HyperelasticBeam:
     """Class implementing the solution to a hyperelastic problem on a deformable beam.
     """
     def __init__(
-            self, eval_times, n=10, lx=1., ly=.1, lz=.1,
-            f=(0.0, 0.0, -50.), time=1., timestep=.1,
-            tol=1e-5, max_iter=30, rel_tol=1e-10, param_remapper=None):
+            self, eval_times,
+            n=10,
+            lx=1.,
+            ly=.1,
+            lz=.1,
+            f=(0.0, 0.0, -50.),
+            nu=.3,
+            time=1.,
+            timestep=.1,
+            tol=1e-5,
+            max_iter=30,
+            rel_tol=1e-10,
+            log_transform=True,
+            param_remapper=None):
         """Parameters
         ----------
         eval_times: numpy.ndarray
@@ -62,6 +73,7 @@ class HyperelasticBeam:
                 'relative_tolerance': rel_tol,
                 'report': False,
                 'error_on_nonconvergence': False}}
+        self.log_transform = log_transform
         self.param_remapper = param_remapper
 
         # mesh creation
@@ -92,6 +104,7 @@ class HyperelasticBeam:
 
         # surface force
         self.f = Constant(f)
+        self.nu = nu
         self.ds = Measure('ds', domain=self.mesh, subdomain_data=self.boundaries)
 
         # evaluation times
@@ -100,6 +113,16 @@ class HyperelasticBeam:
         self.T = time + tol
         self.times = np.arange(self.dt, self.T, self.dt)
         self.time = Expression('t', t=self.dt, degree=0)
+
+    def _get_params(self, z):
+        if type(z) in [list, np.ndarray]:
+            param = self.param_remapper(z[0]) if self.param_remapper is not None else z[0]
+        else:
+            param = self.param_remapper(z) if self.param_remapper is not None else z
+
+        e_var = variable(Constant(param))                   # Young's modulus
+        nu = Constant(self.nu)                              # Shear modulus (Lamè's second parameter)
+        return e_var, nu
 
     def _solve(self, z, x=None):
         # problem variables
@@ -117,13 +140,7 @@ class HyperelasticBeam:
         j = det(f)
 
         # elasticity parameters
-        if type(z) in [list, np.ndarray]:
-            param = self.param_remapper(z[0]) if self.param_remapper is not None else z[0]
-        else:
-            param = self.param_remapper(z) if self.param_remapper is not None else z
-
-        e_var = variable(Constant(param))                   # Young's modulus
-        nu = Constant(.3)                                   # Shear modulus (Lamè's second parameter)
+        e_var, nu = self._get_params(z)
         mu, lmbda = e_var / (2 * (1 + nu)), e_var * nu / ((1 + nu) * (1 - 2 * nu))
 
         # strain energy density, total potential energy
@@ -144,7 +161,10 @@ class HyperelasticBeam:
             self.time.t = t
             self.solver(ff == 0, u, self.bcs, J=jj, bcs=self.bcs, solver_parameters=self.solver_parameters)
             if x is not None:
-                numeric_evals[:, it] = np.log(np.array([-u(x_)[2] for x_ in x.T]).T)
+                if self.log_transform:
+                    numeric_evals[:, it] = np.log(np.array([-u(x_)[2] for x_ in x.T]).T)
+                else:
+                    numeric_evals[:, it] = np.array([u(x_)[2] for x_ in x.T]).T
 
         # time-interpolation
         if x is not None:

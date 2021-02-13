@@ -30,6 +30,7 @@ def diagnostics_report(
         samples,
         burn,
         mh_samples,
+        first_is_high_fidelity=True,
         pad_length=45,
         pad_char='.',
         sep_line_width=60):
@@ -54,11 +55,14 @@ def diagnostics_report(
         args = [
             [ex_t],
             [ex_t / samples],
-            [ess, samples],
+            [ess, samples - burn],
             [ex_c]]
-        if i:
+        if i and first_is_high_fidelity:
             args.append([fit_times[(i - 1) % n_lowfi]])
             args.append([fit_calls[(i - 1) % n_lowfi]])
+        elif not first_is_high_fidelity:
+            args.append([fit_times[i % n_lowfi]])
+            args.append([fit_calls[i % n_lowfi]])
         for arg, recipe in zip(args, recipes):
             out_str += recipe.format(*arg)
         print(out_str)
@@ -144,14 +148,15 @@ def run_and_track(
         error_th,
         init_radius,
         rho,
-        remap_functions=None):
+        remap_functions=None,
+        run_high_fidelity=True):
     fit_times = []
     fit_calls = []
     exec_times = []
     exec_calls = []
     mh_samples = []
     mul_fi_models = []
-    models = [high_fidelity_model] + low_fidelity_models
+    models = ([high_fidelity_model] + low_fidelity_models) if run_high_fidelity else low_fidelity_models
     solver = high_fidelity_model.core_function.solver
 
     for mod in low_fidelity_models:
